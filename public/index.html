@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOH Batterij-certificaat</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>🔋 SOH Batterij-certificaat</h1>
+<p class="subtitle">
+  Lees een CAN-bus logbestand (.txt) in en bekijk de batterijgegevens —
+  <span class="modebadge" id="modeBadge">offline modus</span>
+</p>
+
+<div class="verdict">
+  <div class="verdict-label">⚡ Hoe dit werkt</div>
+  <div class="verdict-text">
+    Sleep een <strong>.txt CAN-log</strong> hierin. De app leest alles
+    <strong>direct uit het bestand</strong>. Betrouwbare bestandsstatistieken en
+    experimentele afleidingen worden apart en eerlijk getoond.
+  </div>
+</div>
+
+<!-- ===== Dropzone ===== -->
+<div class="dropzone" id="dropzone">
+  <span class="dz-icon">📂</span>
+  <div class="dz-title">Sleep hier je .txt-bestand naartoe</div>
+  <div class="dz-sub">of klik om te bladeren</div>
+  <input type="file" id="fileInput" accept=".txt,text/plain" class="hidden">
+</div>
+
+<!-- ===== Resultaat ===== -->
+<section id="result" class="hidden">
+  <h2>📋 Certificaat-overzicht</h2>
+
+  <div class="cards-grid">
+    <!-- SOH-kaart -->
+    <div class="card recommended">
+      <div class="card-name" id="cVehicle">—</div>
+      <div class="card-tagline" id="cFile">—</div>
+      <div class="big" id="cSohBig">—</div>
+      <div class="big-meta">Status van de gezondheid (SOH)</div>
+      <div class="stat-row"><span class="stat-label">VIN</span><span class="stat-value" id="cVin">—</span></div>
+      <div class="stat-row"><span class="stat-label">Decoder</span><span class="stat-value" id="cDecoder">—</span></div>
+    </div>
+
+    <!-- Betrouwbare bestandsstatistieken -->
+    <div class="card">
+      <div class="card-name">Bestandsstatistieken</div>
+      <div class="card-tagline">100% uit het bestand <span class="chip ok">betrouwbaar</span></div>
+      <div class="stat-row"><span class="stat-label">Aantal frames</span><span class="stat-value" id="sFrames">—</span></div>
+      <div class="stat-row"><span class="stat-label">Unieke CAN-ID's</span><span class="stat-value" id="sIds">—</span></div>
+      <div class="stat-row"><span class="stat-label">Opnameduur</span><span class="stat-value" id="sDur">—</span></div>
+      <div class="stat-row"><span class="stat-label">Tijdspanne</span><span class="stat-value" id="sSpan">—</span></div>
+      <div class="stat-row"><span class="stat-label">Parse-fouten</span><span class="stat-value" id="sErr">—</span></div>
+    </div>
+  </div>
+
+  <h3>Afgeleide signalen</h3>
+  <div class="callout warn">
+    <div class="callout-title">⚠️ Experimenteel — lees dit even</div>
+    <div class="callout-body">
+      Onderstaande waarden zijn <strong>kandidaat-afleidingen</strong> uit ruwe databytes en nog
+      <strong>niet geverifieerd</strong>. Velden met <em>"onbekend"</em> staan niet in dit type
+      (passieve) opname. Pas later de byte-mapping aan zodra er logs met diagnose-vraag/antwoord zijn.
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Veld</th><th>Waarde</th><th>Bron-byte</th><th>Zekerheid</th></tr></thead>
+    <tbody id="fieldsBody"></tbody>
+  </table>
+
+  <div class="btn-row">
+    <button class="btn primary" id="saveBtn">💾 Opslaan in database</button>
+    <button class="btn" id="pdfBtn" disabled title="Komt in fase 2">📄 PDF maken</button>
+    <button class="btn" id="mailBtn" disabled title="Komt in fase 2">✉️ Mailen</button>
+  </div>
+</section>
+
+<!-- ===== Opgeslagen records ===== -->
+<h2>🗂️ Opgeslagen metingen</h2>
+<div id="records"><p class="muted">Nog niets opgeslagen.</p></div>
+
+<footer>
+  SOH Batterij-certificaat · fase 1 (offline test) · alle data uit het CAN-logbestand
+</footer>
+
+<script src="can.js"></script>
+<script src="storage.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

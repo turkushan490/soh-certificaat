@@ -1,0 +1,6 @@
+# Firebase Cloud Functions (Python) — fase 2/3
+firebase-functions>=0.1.0
+firebase-admin>=6.0.0
+
+# PDF-generatie (fase 2)
+reportlab>=4.0.0
