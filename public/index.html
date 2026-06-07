@@ -31,6 +31,17 @@
   <input type="file" id="fileInput" accept=".txt,text/plain" class="hidden">
 </div>
 
+<!-- ===== Parse-fout melding ===== -->
+<div id="parseError" class="callout danger hidden">
+  <div class="callout-title">🚨 Geen CAN-data herkend in dit bestand</div>
+  <div class="callout-body">
+    Er zijn <strong>geen geldige CAN-frames</strong> gevonden. Waarschijnlijk heeft dit bestand
+    een andere indeling dan verwacht. Hieronder de eerste regels — stuur die door dan pas ik de
+    parser aan op jouw formaat:
+    <pre id="parseSample" class="sample-pre"></pre>
+  </div>
+</div>
+
 <!-- ===== Resultaat ===== -->
 <section id="result" class="hidden">
   <h2>📋 Certificaat-overzicht</h2>
@@ -145,9 +156,9 @@
   SOH Batterij-certificaat · fase 1 (offline test) · alle data uit het CAN-logbestand
 </footer>
 
-<script src="can.js"></script>
-<script src="certificate.js"></script>
-<script src="storage.js"></script>
-<script src="app.js"></script>
+<script src="can.js?v=2"></script>
+<script src="certificate.js?v=2"></script>
+<script src="storage.js?v=2"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>

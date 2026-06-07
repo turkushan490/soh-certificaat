@@ -124,6 +124,9 @@ tr:hover td { background: #1c2128; }
 .callout.warn { border-left-color: #ffa657; } .callout.danger { border-left-color: #ff7b72; } .callout.good { border-left-color: #2ea043; }
 .callout-title { font-weight: 600; color: #f0f6fc; margin-bottom: 4px; font-size: 14px; }
 .callout-body { font-size: 13px; color: #c9d1d9; }
+.sample-pre { margin-top: 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  padding: 10px 12px; font-family: Consolas, "SF Mono", monospace; font-size: 12px; color: #8b949e;
+  overflow-x: auto; white-space: pre; }
 
 /* Saved list */
 .count-badge { font-size: 13px; font-weight: 600; color: #58a6ff; background:#161b22;

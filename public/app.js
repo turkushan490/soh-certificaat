@@ -159,7 +159,18 @@
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        current = window.CAN.analyze(e.target.result, file.name);
+        const res = window.CAN.analyze(e.target.result, file.name);
+        if (!res.raw_stats.frame_count) {
+          // geen frames herkend -> toon duidelijke melding met voorbeeldregels
+          $('parseSample').textContent = (res.sample_lines || []).join('\n') || '(bestand is leeg)';
+          $('parseError').classList.remove('hidden');
+          $('result').classList.add('hidden');
+          $('parseError').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          current = null;
+          return;
+        }
+        $('parseError').classList.add('hidden');
+        current = res;
         render(current);
       } catch (err) {
         alert('Kon bestand niet verwerken: ' + err.message);

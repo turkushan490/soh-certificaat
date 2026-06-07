@@ -29,43 +29,95 @@
    * ------------------------------------------------------------------------ */
   const HEX_BYTE = /^[0-9A-Fa-f]{2}$/;
   const TIME_RE = /^(\d{1,2}):(\d{2}):(\d{2})\.(\d+)$/;
+  const ID_RE = /^(0x)?[0-9A-Fa-f]{1,8}$/;
 
   function parseTimeToSeconds(tok) {
+    if (tok == null) return null;
     const m = TIME_RE.exec(tok);
+    if (m) {
+      const frac = parseFloat('0.' + m[4]);
+      return (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + frac;
+    }
+    if (/^\d+(\.\d+)?$/.test(tok)) return parseFloat(tok); // kale seconden
+    return null;
+  }
+
+  const normId = (s) => s.replace(/^0x/i, '').toUpperCase();
+  const isInt08 = (s) => /^\d+$/.test(s) && +s >= 0 && +s <= 8;
+
+  // Strategie 1: DLC-verankerd "… [tijd] <DLC> <ID> <byte0..byteN> [ascii]"
+  // Werkt ook met extra kolommen ervoor (regelnummer, kanaal, Rx/Tx, enz.)
+  function parseDlcAnchored(tokens) {
+    for (let i = 0; i + 2 < tokens.length; i++) {
+      if (!isInt08(tokens[i])) continue;
+      const dlc = +tokens[i];
+      if (dlc < 1) continue;
+      const idTok = tokens[i + 1];
+      if (!ID_RE.test(idTok)) continue;
+      const data = tokens.slice(i + 2, i + 2 + dlc);
+      if (data.length !== dlc || !data.every((b) => HEX_BYTE.test(b))) continue;
+      const tSec = i >= 1 ? parseTimeToSeconds(tokens[i - 1]) : null;
+      return { t: i >= 1 ? tokens[i - 1] : '', tSec, id: normId(idTok), dlc,
+        bytes: data.map((b) => parseInt(b, 16)) };
+    }
+    return null;
+  }
+
+  // Strategie 2: candump-stijl "… <ID>#<HEXDATA>"
+  function parseCandump(tokens, line) {
+    const m = /(^|[\s(])((?:0x)?[0-9A-Fa-f]{1,8})#([0-9A-Fa-f]*)/.exec(line);
     if (!m) return null;
-    const h = +m[1], min = +m[2], s = +m[3];
-    const frac = parseFloat('0.' + m[4]);
-    return h * 3600 + min * 60 + s + frac;
+    const hex = m[3];
+    if (hex.length % 2 !== 0) return null;
+    const bytes = [];
+    for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
+    const tSec = parseTimeToSeconds(tokens[0]);
+    return { t: tSec !== null ? tokens[0] : '', tSec, id: normId(m[2]), dlc: bytes.length, bytes };
+  }
+
+  // Strategie 3 (laatste redmiddel): langste rij van 2-hex tokens = data,
+  // het token ervoor = ID.
+  function parseGeneric(tokens) {
+    let best = null;
+    for (let i = 0; i < tokens.length; i++) {
+      if (!HEX_BYTE.test(tokens[i])) continue;
+      let j = i;
+      while (j < tokens.length && HEX_BYTE.test(tokens[j])) j++;
+      if (!best || j - i > best.len) best = { start: i, len: j - i };
+      i = j;
+    }
+    if (!best || best.len < 2) return null;
+    const idIdx = best.start - 1;
+    if (idIdx < 0 || !ID_RE.test(tokens[idIdx])) return null;
+    const data = tokens.slice(best.start, best.start + best.len);
+    const tSec = idIdx >= 1 ? parseTimeToSeconds(tokens[idIdx - 1]) : null;
+    return { t: idIdx >= 1 ? tokens[idIdx - 1] : '', tSec, id: normId(tokens[idIdx]),
+      dlc: data.length, bytes: data.map((b) => parseInt(b, 16)) };
   }
 
   /**
-   * Parse ruwe logtekst -> { frames:[{t,tSec,id,dlc,bytes}], errors, lineCount }
+   * Parse ruwe logtekst -> { frames, errors, lineCount, format }
+   * Probeert meerdere veelgebruikte CAN-logformaten.
    */
   function parseLog(text) {
     const frames = [];
     let errors = 0;
     const lines = text.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const p = line.trim().split(/\s+/);
-      if (p.length < 3) { continue; }
-      const tSec = parseTimeToSeconds(p[0]);
-      const dlc = parseInt(p[1], 10);
-      if (tSec === null || !Number.isInteger(dlc) || dlc < 0 || dlc > 8) {
-        errors++;
-        continue;
-      }
-      const id = p[2].toUpperCase();
-      // de eerstvolgende <dlc> tokens die geldige hex-bytes zijn
-      const bytes = [];
-      for (let i = 3; i < p.length && bytes.length < dlc; i++) {
-        if (HEX_BYTE.test(p[i])) bytes.push(parseInt(p[i], 16));
-        else break;
-      }
-      if (bytes.length !== dlc) { errors++; continue; }
-      frames.push({ t: p[0], tSec, id, dlc, bytes });
+    const counts = { dlc: 0, candump: 0, generic: 0 };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const tokens = line.split(/\s+/);
+      let fr = parseDlcAnchored(tokens);
+      if (fr) counts.dlc++;
+      if (!fr) { fr = parseCandump(tokens, line); if (fr) counts.candump++; }
+      if (!fr) { fr = parseGeneric(tokens); if (fr) counts.generic++; }
+      if (fr) frames.push(fr);
+      else errors++;
     }
-    return { frames, errors, lineCount: lines.length };
+    const format = counts.candump > counts.dlc && counts.candump > counts.generic
+      ? 'candump' : counts.generic > counts.dlc ? 'generiek' : 'standaard';
+    return { frames, errors, lineCount: lines.length, format };
   }
 
   /* --------------------------------------------------------------------------
@@ -90,6 +142,7 @@
       duration_s: duration,
       t_start: frames.length ? frames[0].t : null,
       t_end: frames.length ? frames[frames.length - 1].t : null,
+      format: parsed.format || 'standaard',
     };
   }
 
@@ -185,6 +238,8 @@
     const stats = rawStats(parsed);
     const decoder = pickDecoder(parsed, stats);
     const decoded = decoder.decode(parsed, stats);
+    // eerste niet-lege regels bewaren voor diagnose bij een onbekend formaat
+    const sampleLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 6);
     return {
       source_filename: filename || null,
       analyzed_at: new Date().toISOString(),
@@ -192,6 +247,7 @@
       vehicle: decoded.model,
       raw_stats: stats,
       decoded: decoded.fields,
+      sample_lines: sampleLines,
     };
   }
 
