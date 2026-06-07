@@ -116,11 +116,33 @@ tr:hover td { background: #1c2128; }
 .callout-body { font-size: 13px; color: #c9d1d9; }
 
 /* Saved list */
+.count-badge { font-size: 13px; font-weight: 600; color: #58a6ff; background:#161b22;
+  border:1px solid #30363d; border-radius: 12px; padding: 1px 10px; vertical-align: middle; }
+.list-controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 14px; }
+.list-controls input[type="search"] { flex: 1 1 260px; }
+.list-controls input, .list-controls select {
+  background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#c9d1d9;
+  padding:9px 12px; font-size:14px; }
+.list-controls input:focus, .list-controls select:focus { outline:none; border-color:#58a6ff; }
+
 .record { display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
-.record .r-main { font-size: 14px; color: #f0f6fc; font-weight: 500; }
-.record .r-meta { font-size: 12px; color: #8b949e; }
-.record .r-del { color: #ff7b72; cursor: pointer; font-size: 13px; background:none;border:none; }
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px;
+  margin-bottom: 8px; cursor: pointer; transition: border-color .15s; }
+.record:hover { border-color: #58a6ff; }
+.record .r-main { font-size: 14px; color: #58a6ff; font-weight: 600; }
+.record .r-meta { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.record .r-right { display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.record .r-soh { font-size: 13px; font-weight: 600; }
+.record .r-del { color: #ff7b72; cursor: pointer; font-size: 13px; background:none;border:none; padding:4px; }
+.record .r-del:hover { text-decoration: underline; }
+
+.pager { display:flex; gap:6px; justify-content:center; align-items:center; margin: 6px 0 20px; flex-wrap:wrap; }
+.pager button { background:#161b22; border:1px solid #30363d; border-radius:6px; color:#c9d1d9;
+  padding:6px 11px; font-size:13px; cursor:pointer; }
+.pager button:hover:not(:disabled) { border-color:#58a6ff; }
+.pager button.active { background:#1f3a52; border-color:#2d4a6e; color:#f0f6fc; font-weight:600; }
+.pager button:disabled { opacity:.4; cursor:not-allowed; }
+.pager .pinfo { color:#8b949e; font-size:12px; margin:0 6px; }
 
 /* Login */
 .auth-box { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:18px 20px; max-width:380px; }

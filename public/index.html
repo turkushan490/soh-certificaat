@@ -80,8 +80,22 @@
 </section>
 
 <!-- ===== Opgeslagen records ===== -->
-<h2>🗂️ Opgeslagen metingen</h2>
+<h2>🗂️ Opgeslagen metingen <span class="count-badge" id="recCount">0</span></h2>
+
+<div class="list-controls">
+  <input type="search" id="searchBox" placeholder="🔍 Zoek op voertuig, bestandsnaam of VIN…">
+  <select id="monthFilter"><option value="">Alle maanden</option></select>
+  <select id="sortBy">
+    <option value="date_desc">Datum (nieuwste eerst)</option>
+    <option value="date_asc">Datum (oudste eerst)</option>
+    <option value="vehicle_asc">Voertuig (A→Z)</option>
+    <option value="frames_desc">Meeste frames</option>
+  </select>
+</div>
+
 <div id="records"><p class="muted">Nog niets opgeslagen.</p></div>
+
+<div class="pager" id="pager"></div>
 
 <footer>
   SOH Batterij-certificaat · fase 1 (offline test) · alle data uit het CAN-logbestand

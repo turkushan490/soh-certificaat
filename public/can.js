@@ -122,46 +122,34 @@
     decode(parsed /*, stats */) {
       const fields = {};
 
-      // -- Kandidaat live packspanning: ID 7C3, bytes b2:b3 (big-endian)
-      //    Geobserveerd ~0x0C6D-0x0C6E = 3181-3182, stabiel.
-      //    Hypothese: spanning in 0,1 V -> ~318,2 V (live, ander moment dan
-      //    certificaat). LAGE zekerheid.
+      // -- Stabiele waarde uit 7C3 b2:b3 (BE) ~3181-3182. Betekenis ONBEVESTIGD.
+      //    (Eerder als "packspanning ÷10" gelezen, maar dat is niet te valideren
+      //     tegen het certificaat; daarom nu neutraal als ruw signaal getoond.)
       const f7c3 = framesFor(parsed, '7C3');
       if (f7c3.length) {
         const raw = f7c3.map(f => (f.bytes[2] << 8) | f.bytes[3]);
-        const avg = raw.reduce((a, b) => a + b, 0) / raw.length;
-        fields.pack_voltage = field(+(avg / 10).toFixed(1), 'V', 'laag',
-          '7C3 b2:b3 (BE) ÷10',
-          'Experimentele afleiding van live packspanning; niet de certificaatwaarde.');
+        const avg = Math.round(raw.reduce((a, b) => a + b, 0) / raw.length);
+        fields.raw_7c3 = field(avg, '', 'zeer laag', '7C3 b2:b3 (BE)',
+          'Stabiele ruwe waarde, grootheid onbevestigd (mogelijk een spanning/temperatuur).');
       }
 
-      // -- Kandidaat percentage (mogelijk SOC): ID 7C1 byte b6.
-      //    Geobserveerd 0x63=99, 0x44=68, 0x43=67. LAGE zekerheid.
+      // -- Ruw signaal uit 7C1 b6 (0x63=99 / 0x43-44). Betekenis ONBEVESTIGD.
       const f7c1 = framesFor(parsed, '7C1');
       if (f7c1.length) {
         const last = f7c1[f7c1.length - 1].bytes[6];
-        fields.percentage_7c1 = field(last, '%', 'zeer laag',
-          '7C1 b6',
-          'Mogelijk SOC of een ander percentage; niet bevestigd.');
+        fields.raw_7c1 = field(last, '', 'zeer laag', '7C1 b6',
+          'Ruw signaal; betekenis onbevestigd.');
       }
 
-      // -- Kandidaat percentage 2: ID 799 byte b0 (0x31-0x35 = 49-53).
-      const f799 = framesFor(parsed, '799');
-      if (f799.length) {
-        const vals = f799.map(f => f.bytes[0]);
-        const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-        fields.signal_799 = field(avg, '', 'zeer laag',
-          '799 b0',
-          'Stabiel rond 49-53; betekenis onbevestigd (temp/SOC?).');
-      }
-
-      // -- Velden die NIET uit dit bestand af te leiden zijn -> null/onbekend.
-      fields.soh = field(null, '%', 'n.v.t.', '—',
-        'Niet aanwezig in passieve CAN-opname.');
-      fields.cell_high = field(null, 'V', 'n.v.t.', '—', 'Niet aanwezig in logbestand.');
-      fields.cell_low = field(null, 'V', 'n.v.t.', '—', 'Niet aanwezig in logbestand.');
-      fields.cell_diff = field(null, 'mV', 'n.v.t.', '—', 'Niet aanwezig in logbestand.');
-      fields.vin = field(null, '', 'n.v.t.', '—', 'Niet aanwezig in deze opname.');
+      // -- Velden die NIET uit een passieve opname af te leiden zijn -> onbekend.
+      //    Deze komen normaal uit een actieve diagnose (UDS request/response).
+      const note = 'Niet aanwezig in passieve CAN-opname; vereist een diagnose-log (UDS).';
+      fields.soh = field(null, '%', 'n.v.t.', '—', note);
+      fields.pack_voltage = field(null, 'V', 'n.v.t.', '—', note);
+      fields.cell_high = field(null, 'V', 'n.v.t.', '—', note);
+      fields.cell_low = field(null, 'V', 'n.v.t.', '—', note);
+      fields.cell_diff = field(null, 'mV', 'n.v.t.', '—', note);
+      fields.vin = field(null, '', 'n.v.t.', '—', note);
 
       return { model: 'BMW 3-serie 330e (PHEV)', fields };
     },
