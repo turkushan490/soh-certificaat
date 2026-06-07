@@ -215,6 +215,23 @@
    * ------------------------------------------------------------------------ */
   const h2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 
+  // Merk/model afleiden uit de VIN (WMI = wereldfabrikant-code, eerste 3 tekens)
+  function vinToVehicle(vin) {
+    if (!vin || vin.length < 3) return 'BMW/Mini (UDS-diagnose)';
+    const wmi = vin.slice(0, 3).toUpperCase();
+    const map = {
+      WMW: 'Mini Cooper',
+      WBY: 'BMW i3',
+      WBA: 'BMW 3-serie',
+      WBS: 'BMW M',
+      WBX: 'BMW X',
+      WBN: 'BMW',
+      '4US': 'BMW (US)',
+      WB1: 'BMW',
+    };
+    return map[wmi] || 'BMW/Mini (UDS-diagnose)';
+  }
+
   function reassembleUDS(parsed) {
     const state = {}; // per ECU-id: {buf, need}
     const dids = {};  // DID -> payload (eerste voorkomen)
@@ -298,10 +315,14 @@
       if (!fields.pack_voltage) fields.pack_voltage = field(null, 'V', 'n.v.t.', '—', note);
       if (!fields.vin) fields.vin = field(null, '', 'n.v.t.', '—', 'VIN niet gevonden in diagnose.');
 
+      // merk/model afleiden uit de VIN (WMI = eerste 3 tekens)
+      const vinVal = fields.vin && fields.vin.value;
+      const model = vinToVehicle(vinVal);
+
       // alle ruwe DID's meegeven voor latere kalibratie
       const rawDids = {};
       for (const k in dids) rawDids[k] = dids[k].map(h2).join(' ');
-      return { model: 'BMW (UDS-diagnose)', fields, raw_dids: rawDids };
+      return { model, fields, raw_dids: rawDids };
     },
   });
 
