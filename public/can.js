@@ -273,6 +273,25 @@
         }
       }
 
+      // Packspanning (DID DD68 of DDB4 = 16-bit ×0,01 V) -> ~349 V voor i3
+      const pv = dids.DD68 || dids.DDB4;
+      if (pv && pv.length >= 2) {
+        const raw = (pv[0] << 8) | pv[1];
+        const volts = +(raw / 100).toFixed(2);
+        if (volts > 100 && volts < 500) {
+          fields.pack_voltage = field(volts, 'V', 'gemiddeld',
+            'UDS DID ' + (dids.DD68 ? 'DD68' : 'DDB4') + ' ×0,01', 'Uit diagnose.');
+        }
+      }
+
+      // SOH (DID DD7B = 1 byte percentage)
+      if (dids.DD7B && dids.DD7B.length >= 1) {
+        const v = dids.DD7B[0];
+        if (v > 0 && v <= 100) {
+          fields.soh = field(v, '%', 'gemiddeld', 'UDS DID DD7B', 'Uit diagnose (te bevestigen).');
+        }
+      }
+
       // Onbekende-tot-nu velden expliciet markeren
       const note = 'Parameter in diagnose aanwezig maar nog niet gekalibreerd.';
       if (!fields.soh) fields.soh = field(null, '%', 'n.v.t.', '—', note);

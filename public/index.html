@@ -46,48 +46,50 @@
 <section id="result" class="hidden">
   <h2>📋 Certificaat-overzicht</h2>
 
-  <!-- Door gebruiker in te vullen voertuig-/metinggegevens -->
+  <!-- Voertuiggegevens: alleen kenteken/model/notitie zelf invullen -->
   <div class="card" style="margin-bottom:14px;">
-    <div class="card-name">Voertuiggegevens <span class="muted" style="font-weight:400;font-size:12px;">(vul in vanaf je diagnose)</span></div>
+    <div class="card-name">Voertuiggegevens</div>
     <div class="form-grid">
       <label>Kenteken
         <input type="text" id="inpKenteken" placeholder="bijv. 12-ABC-3" maxlength="12" style="text-transform:uppercase">
       </label>
-      <label>Merk &amp; model
-        <input type="text" id="inpVehicle" placeholder="BMW 3-serie 330e">
-      </label>
-      <label>VIN
-        <input type="text" id="inpVin" placeholder="WBA5P51000FL00743" maxlength="17" style="text-transform:uppercase">
-      </label>
-      <label>Kilometerstand
-        <input type="number" id="inpMileage" placeholder="117548" min="0">
-      </label>
-    </div>
-
-    <div class="card-name" style="margin-top:16px;">Batterijgegevens</div>
-    <div class="form-grid">
-      <label>SOH %
-        <input type="number" id="inpSoh" placeholder="89" min="0" max="100" step="0.1">
-      </label>
-      <label>Packspanning (V)
-        <input type="number" id="inpPackV" placeholder="341.96" min="0" step="0.01">
-      </label>
-      <label>Hoogste celspanning (V)
-        <input type="number" id="inpCellHi" placeholder="3.571" min="0" step="0.001">
-      </label>
-      <label>Laagste celspanning (V)
-        <input type="number" id="inpCellLo" placeholder="3.553" min="0" step="0.001">
-      </label>
-      <label>Celverschil (mV) <span class="muted">(auto)</span>
-        <input type="number" id="inpCellDiff" placeholder="18" min="0" step="1">
-      </label>
-      <label>Bruikbare capaciteit (kWh)
-        <input type="number" id="inpCapacity" placeholder="9.35" min="0" step="0.01">
+      <label>Merk &amp; model <span class="muted">(indien nodig)</span>
+        <input type="text" id="inpVehicle" placeholder="BMW i3">
       </label>
       <label class="full">Notitie
         <input type="text" id="inpNote" placeholder="bijv. ingenomen, klant Jansen">
       </label>
     </div>
+
+    <details class="manual-details">
+      <summary>✏️ Handmatig aanvullen <span class="muted">— alleen als een waarde niet uit het bestand komt</span></summary>
+      <div class="form-grid" style="margin-top:12px;">
+        <label>VIN
+          <input type="text" id="inpVin" placeholder="auto uit bestand" maxlength="17" style="text-transform:uppercase">
+        </label>
+        <label>Kilometerstand
+          <input type="number" id="inpMileage" placeholder="117548" min="0">
+        </label>
+        <label>SOH %
+          <input type="number" id="inpSoh" placeholder="auto" min="0" max="100" step="0.1">
+        </label>
+        <label>Packspanning (V)
+          <input type="number" id="inpPackV" placeholder="auto" min="0" step="0.01">
+        </label>
+        <label>Hoogste celspanning (V)
+          <input type="number" id="inpCellHi" placeholder="auto" min="0" step="0.001">
+        </label>
+        <label>Laagste celspanning (V)
+          <input type="number" id="inpCellLo" placeholder="auto" min="0" step="0.001">
+        </label>
+        <label>Celverschil (mV) <span class="muted">(auto)</span>
+          <input type="number" id="inpCellDiff" placeholder="auto" min="0" step="1">
+        </label>
+        <label>Bruikbare capaciteit (kWh)
+          <input type="number" id="inpCapacity" placeholder="9.35" min="0" step="0.01">
+        </label>
+      </div>
+    </details>
   </div>
 
   <div class="cards-grid">
@@ -156,9 +158,9 @@
   SOH Batterij-certificaat · fase 1 (offline test) · alle data uit het CAN-logbestand
 </footer>
 
-<script src="can.js?v=4"></script>
-<script src="certificate.js?v=4"></script>
-<script src="storage.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="can.js?v=5"></script>
+<script src="certificate.js?v=5"></script>
+<script src="storage.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

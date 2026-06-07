@@ -73,6 +73,10 @@ code {
 }
 .form-grid input:focus { outline: none; border-color: #58a6ff; }
 
+.manual-details { margin-top: 14px; border-top: 1px solid #21262d; padding-top: 12px; }
+.manual-details summary { cursor: pointer; font-size: 13px; color: #58a6ff; font-weight: 500; user-select: none; }
+.manual-details summary:hover { color: #79b8ff; }
+
 /* Card grid */
 .cards-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
