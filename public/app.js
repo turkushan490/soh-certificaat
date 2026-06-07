@@ -316,15 +316,24 @@
     dz.addEventListener('click', () => input.click());
     input.addEventListener('change', () => handleFile(input.files[0]));
 
+    // Highlight het dropvak bij slepen erboven
     ['dragenter', 'dragover'].forEach((ev) =>
-      dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('drag'); })
+      dz.addEventListener(ev, () => dz.classList.add('drag'))
     );
-    ['dragleave', 'drop'].forEach((ev) =>
-      dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('drag'); })
+    ['dragleave', 'dragend'].forEach((ev) =>
+      dz.addEventListener(ev, () => dz.classList.remove('drag'))
     );
-    dz.addEventListener('drop', (e) => {
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      handleFile(file);
+
+    // Accepteer een drop OVERAL op de pagina (en voorkom dat de browser het
+    // bestand opent als je net naast het vak loslaat).
+    ['dragenter', 'dragover'].forEach((ev) =>
+      document.addEventListener(ev, (e) => { e.preventDefault(); })
+    );
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dz.classList.remove('drag');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) handleFile(file);
     });
 
     $('saveBtn').addEventListener('click', async () => {
