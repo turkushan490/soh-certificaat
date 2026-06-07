@@ -208,6 +208,84 @@
     },
   });
 
+  /* ---- BMW UDS-diagnose decoder (rijk bestand met 6F1 + 6xx) ----------------
+   * Herkent een actieve diagnose-uitlezing: tester 6F1 vraagt DID's op
+   * (22 <DID>), ECU's antwoorden op 0x6xx met (62 <DID> <data>), vaak in
+   * meerdere ISO-TP frames. We zetten die weer samen en lezen de parameters.
+   * ------------------------------------------------------------------------ */
+  const h2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
+
+  function reassembleUDS(parsed) {
+    const state = {}; // per ECU-id: {buf, need}
+    const dids = {};  // DID -> payload (eerste voorkomen)
+    for (const f of parsed.frames) {
+      const id = f.id;
+      if (id === '6F1' || !/^6[0-9A-F]{2}$/.test(id)) continue;
+      const b = f.bytes;
+      if (b.length < 2) continue;
+      const st = state[id] || (state[id] = { buf: null, need: 0 });
+      const pci = b[1], hi = pci >> 4;
+      let msg = null;
+      if (hi === 0) {
+        msg = b.slice(2, 2 + (pci & 0x0F));
+      } else if (hi === 1) {
+        st.need = ((pci & 0x0F) << 8) | b[2];
+        st.buf = b.slice(3);
+        if (st.buf.length >= st.need) { msg = st.buf.slice(0, st.need); st.buf = null; }
+      } else if (hi === 2 && st.buf) {
+        st.buf = st.buf.concat(b.slice(2));
+        if (st.buf.length >= st.need) { msg = st.buf.slice(0, st.need); st.buf = null; }
+      }
+      if (msg && msg.length >= 3 && msg[0] === 0x62) {
+        const did = h2(msg[1]) + h2(msg[2]);
+        if (!(did in dids)) dids[did] = msg.slice(3);
+      }
+    }
+    return dids;
+  }
+
+  registerDecoder({
+    id: 'bmw_uds',
+    label: 'BMW UDS-diagnose',
+    matches(parsed, stats) {
+      return stats.can_ids.includes('6F1');
+    },
+    decode(parsed) {
+      const dids = reassembleUDS(parsed);
+      const fields = {};
+      const asciiOf = (bs) => bs.map((x) => (x >= 32 && x < 127) ? String.fromCharCode(x) : '').join('');
+
+      // VIN (standaard DID F190)
+      if (dids.F190) {
+        const vin = asciiOf(dids.F190).replace(/[^A-HJ-NPR-Z0-9]/g, '');
+        if (vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'UDS DID F190', 'Uit diagnose (VIN).');
+      }
+
+      // Hoogste/laagste celspanning (DID DDBF = twee 16-bit waarden in mV)
+      if (dids.DDBF && dids.DDBF.length >= 4) {
+        const a = (dids.DDBF[0] << 8) | dids.DDBF[1];
+        const b = (dids.DDBF[2] << 8) | dids.DDBF[3];
+        const hi = Math.max(a, b), lo = Math.min(a, b);
+        if (hi > 2000 && hi < 4500) {
+          fields.cell_high = field(+(hi / 1000).toFixed(3), 'V', 'gemiddeld', 'UDS DID DDBF', 'Uit diagnose.');
+          fields.cell_low = field(+(lo / 1000).toFixed(3), 'V', 'gemiddeld', 'UDS DID DDBF', 'Uit diagnose.');
+          fields.cell_diff = field(hi - lo, 'mV', 'gemiddeld', 'UDS DID DDBF', 'Berekend uit cellen.');
+        }
+      }
+
+      // Onbekende-tot-nu velden expliciet markeren
+      const note = 'Parameter in diagnose aanwezig maar nog niet gekalibreerd.';
+      if (!fields.soh) fields.soh = field(null, '%', 'n.v.t.', '—', note);
+      if (!fields.pack_voltage) fields.pack_voltage = field(null, 'V', 'n.v.t.', '—', note);
+      if (!fields.vin) fields.vin = field(null, '', 'n.v.t.', '—', 'VIN niet gevonden in diagnose.');
+
+      // alle ruwe DID's meegeven voor latere kalibratie
+      const rawDids = {};
+      for (const k in dids) rawDids[k] = dids[k].map(h2).join(' ');
+      return { model: 'BMW (UDS-diagnose)', fields, raw_dids: rawDids };
+    },
+  });
+
   /* ---- Generieke fallback-decoder (onbekend model) ------------------------- */
   const genericDecoder = {
     id: 'generic',
@@ -247,6 +325,7 @@
       vehicle: decoded.model,
       raw_stats: stats,
       decoded: decoded.fields,
+      raw_dids: decoded.raw_dids || null,
       sample_lines: sampleLines,
     };
   }
