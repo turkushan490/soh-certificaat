@@ -13,9 +13,18 @@ database, sleep-bestand-erin → automatisch een record, PDF genereren en mailen
 |------|-----------|--------|
 | 1 | CAN-parser + decoder + GUI (offline, huisstijl) | ✅ werkt |
 | 1 | Opslaan in lokale "database" (localStorage) | ✅ werkt |
-| 2 | PDF genereren in certificaat-lay-out | ⏳ gepland |
+| 1 | Kenteken + handmatige velden per auto | ✅ werkt |
+| 1 | Doorzoekbare/sorteerbare lijst + paginering (100en) | ✅ werkt |
+| 2 | PDF genereren (uitprintbaar certificaat per auto) | ✅ werkt |
 | 2 | Mailen | ⏳ gepland |
 | 3 | Firebase: login + Firestore + Storage + online | 🧱 gescaffold |
+
+## Workflow
+
+1. Auto wordt uitgelezen → je krijgt een `.txt` CAN-log.
+2. Sleep die in de app; vul **kenteken** en (van je diagnose) **SOH/km** in.
+3. **Opslaan** → de meting komt met datum in het archief.
+4. Later **terugzoeken** op kenteken/datum/maand en **PDF printen** per auto.
 
 ## Belangrijke bevinding (onderzoek)
 

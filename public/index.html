@@ -35,6 +35,28 @@
 <section id="result" class="hidden">
   <h2>📋 Certificaat-overzicht</h2>
 
+  <!-- Door gebruiker in te vullen voertuig-/metinggegevens -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-name">Voertuiggegevens <span class="muted" style="font-weight:400;font-size:12px;">(vul zelf aan)</span></div>
+    <div class="form-grid">
+      <label>Kenteken
+        <input type="text" id="inpKenteken" placeholder="bijv. 12-ABC-3" maxlength="12" style="text-transform:uppercase">
+      </label>
+      <label>Merk &amp; model
+        <input type="text" id="inpVehicle" placeholder="BMW 3-serie 330e">
+      </label>
+      <label>SOH % <span class="muted">(van diagnose)</span>
+        <input type="number" id="inpSoh" placeholder="89" min="0" max="100" step="0.1">
+      </label>
+      <label>Kilometerstand
+        <input type="number" id="inpMileage" placeholder="117548" min="0">
+      </label>
+      <label class="full">Notitie
+        <input type="text" id="inpNote" placeholder="bijv. ingenomen, klant Jansen">
+      </label>
+    </div>
+  </div>
+
   <div class="cards-grid">
     <!-- SOH-kaart -->
     <div class="card recommended">
@@ -74,8 +96,8 @@
 
   <div class="btn-row">
     <button class="btn primary" id="saveBtn">💾 Opslaan in database</button>
-    <button class="btn" id="pdfBtn" disabled title="Komt in fase 2">📄 PDF maken</button>
-    <button class="btn" id="mailBtn" disabled title="Komt in fase 2">✉️ Mailen</button>
+    <button class="btn" id="pdfBtn">📄 PDF / printen</button>
+    <button class="btn" id="mailBtn" disabled title="Komt later">✉️ Mailen</button>
   </div>
 </section>
 
@@ -102,6 +124,7 @@
 </footer>
 
 <script src="can.js"></script>
+<script src="certificate.js"></script>
 <script src="storage.js"></script>
 <script src="app.js"></script>
 </body>

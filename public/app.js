@@ -26,6 +26,30 @@
   const confChipClass = (c) =>
     c === 'laag' ? 'laag' : c === 'zeer laag' ? 'zeer' : 'nvt';
 
+  // SOH met voorrang voor handmatige invoer
+  function effectiveSoh(rec) {
+    if (rec.manual && rec.manual.soh != null && rec.manual.soh !== '')
+      return Number(rec.manual.soh);
+    const f = rec.decoded && rec.decoded.soh;
+    return f && f.value !== null ? f.value : null;
+  }
+
+  // lees de invoervelden en voeg ze samen in het huidige record
+  function collectInputs(rec) {
+    const kenteken = $('inpKenteken').value.trim().toUpperCase();
+    const userVehicle = $('inpVehicle').value.trim();
+    const soh = $('inpSoh').value.trim();
+    const mileage = $('inpMileage').value.trim();
+    const note = $('inpNote').value.trim();
+    rec.kenteken = kenteken;
+    rec._userVehicle = userVehicle;
+    if (userVehicle) rec.vehicle = userVehicle;
+    rec.manual = { soh: soh === '' ? null : Number(soh) };
+    rec.mileage = mileage === '' ? null : Number(mileage);
+    rec.note = note;
+    return rec;
+  }
+
   /* ---- render --------------------------------------------------------------- */
   function fmtVal(f) {
     if (f.value === null || f.value === undefined) return 'onbekend';
@@ -41,14 +65,21 @@
     $('cDecoder').textContent = res.decoder_id;
     $('cVin').textContent = d.vin && d.vin.value ? d.vin.value : 'onbekend';
 
-    const soh = d.soh;
-    if (soh && soh.value !== null) {
-      $('cSohBig').textContent = soh.value + '%';
+    const sohVal = effectiveSoh(res);
+    if (sohVal !== null) {
+      $('cSohBig').textContent = sohVal + '%';
       $('cSohBig').classList.remove('unknown');
     } else {
       $('cSohBig').textContent = 'onbekend';
       $('cSohBig').classList.add('unknown');
     }
+
+    // invoervelden vullen vanuit het record
+    $('inpKenteken').value = res.kenteken || '';
+    $('inpVehicle').value = res._userVehicle || '';
+    $('inpSoh').value = res.manual && res.manual.soh != null ? res.manual.soh : '';
+    $('inpMileage').value = res.mileage || '';
+    $('inpNote').value = res.note || '';
 
     $('sFrames').textContent = s.frame_count;
     $('sIds').textContent = s.can_ids.length + ' (' + s.can_ids.join(', ') + ')';
@@ -107,7 +138,7 @@
     let list = listState.all.filter((r) => {
       if (listState.month && recMonth(r) !== listState.month) return false;
       if (!q) return true;
-      const hay = [r.vehicle, r.source_filename, recVin(r)].join(' ').toLowerCase();
+      const hay = [r.vehicle, r.source_filename, recVin(r), r.kenteken, r.note].join(' ').toLowerCase();
       return hay.includes(q);
     });
     const cmp = {
@@ -156,18 +187,19 @@
 
     wrap.innerHTML = '';
     for (const r of slice) {
-      const sohF = r.decoded && r.decoded.soh;
-      const known = sohF && sohF.value !== null;
-      const soh = known ? sohF.value + '%' : 'onbekend';
-      const sohCls = known ? (sohF.value >= 80 ? 'stat-good' : sohF.value >= 60 ? 'stat-warn' : 'stat-bad') : 'stat-unknown';
+      const sv = effectiveSoh(r);
+      const known = sv !== null;
+      const soh = known ? sv + '%' : 'onbekend';
+      const sohCls = known ? (sv >= 80 ? 'stat-good' : sv >= 60 ? 'stat-warn' : 'stat-bad') : 'stat-unknown';
+      const title = r.kenteken ? esc(r.kenteken) + ' · ' + esc(r.vehicle || 'Onbekend') : esc(r.vehicle || 'Onbekend');
       const div = document.createElement('div');
       div.className = 'record';
       div.dataset.id = r.id;
       div.innerHTML =
-        `<div><div class="r-main">${esc(r.vehicle || 'Onbekend')}` +
-        (recVin(r) ? ` · ${esc(recVin(r))}` : '') + `</div>` +
+        `<div><div class="r-main">${title}</div>` +
         `<div class="r-meta">${esc(r.source_filename || '—')} · ${r.raw_stats.frame_count} frames · ` +
-        `${new Date(r.uploaded_at).toLocaleString('nl-NL')}</div></div>` +
+        `${new Date(r.uploaded_at).toLocaleString('nl-NL')}` +
+        (r.note ? ` · ${esc(r.note)}` : '') + `</div></div>` +
         `<div class="r-right"><span class="r-soh ${sohCls}">${soh} SOH</span>` +
         `<button class="r-del" data-del="${r.id}" title="Verwijderen">verwijderen</button></div>`;
       wrap.appendChild(div);
@@ -239,11 +271,18 @@
 
     $('saveBtn').addEventListener('click', async () => {
       if (!current) return;
+      collectInputs(current);
       await window.Storage.add(JSON.parse(JSON.stringify(current)));
       $('saveBtn').textContent = '✓ Opgeslagen';
       setTimeout(() => ($('saveBtn').textContent = '💾 Opslaan in database'), 1500);
       listState.page = 1;
       refreshRecords();
+    });
+
+    $('pdfBtn').addEventListener('click', () => {
+      if (!current) return;
+      collectInputs(current);
+      window.Certificate.openCertificate(current);
     });
 
     // lijst-besturing
