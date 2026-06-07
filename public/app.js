@@ -122,6 +122,22 @@
 
     renderCertFields(res);
 
+    // melding: bevat dit bestand diagnose-data of is het een passieve opname?
+    const decodedFromFile = CERT_FIELDS.some(([k]) => effField(res, k).source === 'logbestand');
+    const note = $('fileTypeNote');
+    if (decodedFromFile) {
+      note.className = 'callout good';
+      note.innerHTML = '<div class="callout-title">✅ Diagnose-data gevonden</div>' +
+        '<div class="callout-body">Dit is een volledige diagnose-opname. SOH, spanningen en VIN ' +
+        'zijn automatisch uit het bestand gehaald (label "logbestand").</div>';
+    } else {
+      note.className = 'callout warn';
+      note.innerHTML = '<div class="callout-title">⚠️ Geen batterijdata in dit bestand</div>' +
+        '<div class="callout-body">Dit is een <strong>passieve opname</strong> — de SOH/celspanningen ' +
+        'zitten er fysiek niet in. Gebruik een <strong>volledige diagnose-opname</strong> (zoals ' +
+        '<code>CAN_500000…txt</code>) voor automatische waarden, of vul ze handmatig aan.</div>';
+    }
+
     $('result').classList.remove('hidden');
     $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
