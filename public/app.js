@@ -7,17 +7,25 @@
   const $ = (id) => document.getElementById(id);
   let current = null; // laatste analyse-resultaat
 
-  /* ---- labels voor de afgeleide velden -------------------------------------- */
-  const FIELD_LABELS = {
-    soh: 'SOH (gezondheid)',
-    pack_voltage: 'Packspanning',
-    cell_high: 'Hoogste celspanning',
-    cell_low: 'Laagste celspanning',
-    cell_diff: 'Celverschil',
-    vin: 'VIN',
-    raw_7c3: 'Ruw signaal 7C3',
-    raw_7c1: 'Ruw signaal 7C1',
-  };
+  /* ---- certificaat-velden (volgorde, label, eenheid) ------------------------ */
+  const CERT_FIELDS = [
+    ['soh', 'SOH (gezondheid)', '%'],
+    ['pack_voltage', 'Packspanning', 'V'],
+    ['cell_high', 'Hoogste celspanning', 'V'],
+    ['cell_low', 'Laagste celspanning', 'V'],
+    ['cell_diff', 'Celverschil', 'mV'],
+    ['capacity', 'Bruikbare capaciteit', 'kWh'],
+    ['vin', 'VIN', ''],
+  ];
+
+  // effectieve waarde van een certificaat-veld: handmatig > gedecodeerd > null
+  function effField(rec, key) {
+    const m = rec.manual && rec.manual[key];
+    if (m != null && m !== '') return { value: m, source: 'ingevuld' };
+    const d = rec.decoded && rec.decoded[key];
+    if (d && d.value != null) return { value: d.value, source: 'logbestand' };
+    return { value: null, source: null };
+  }
 
   /* ---- lijst-status --------------------------------------------------------- */
   const PAGE_SIZE = 25;
@@ -34,19 +42,37 @@
     return f && f.value !== null ? f.value : null;
   }
 
+  const numOrNull = (id) => {
+    const v = $(id).value.trim();
+    return v === '' ? null : Number(v);
+  };
+
   // lees de invoervelden en voeg ze samen in het huidige record
   function collectInputs(rec) {
-    const kenteken = $('inpKenteken').value.trim().toUpperCase();
+    rec.kenteken = $('inpKenteken').value.trim().toUpperCase();
     const userVehicle = $('inpVehicle').value.trim();
-    const soh = $('inpSoh').value.trim();
-    const mileage = $('inpMileage').value.trim();
-    const note = $('inpNote').value.trim();
-    rec.kenteken = kenteken;
     rec._userVehicle = userVehicle;
     if (userVehicle) rec.vehicle = userVehicle;
-    rec.manual = { soh: soh === '' ? null : Number(soh) };
-    rec.mileage = mileage === '' ? null : Number(mileage);
-    rec.note = note;
+    rec.mileage = numOrNull('inpMileage');
+    rec.note = $('inpNote').value.trim();
+
+    const cellHi = numOrNull('inpCellHi');
+    const cellLo = numOrNull('inpCellLo');
+    let cellDiff = numOrNull('inpCellDiff');
+    // celverschil automatisch berekenen uit hoog - laag (in mV)
+    if (cellDiff == null && cellHi != null && cellLo != null) {
+      cellDiff = Math.round((cellHi - cellLo) * 1000);
+      $('inpCellDiff').value = cellDiff;
+    }
+    rec.manual = {
+      soh: numOrNull('inpSoh'),
+      pack_voltage: numOrNull('inpPackV'),
+      cell_high: cellHi,
+      cell_low: cellLo,
+      cell_diff: cellDiff,
+      capacity: numOrNull('inpCapacity'),
+      vin: $('inpVin').value.trim().toUpperCase() || null,
+    };
     return rec;
   }
 
@@ -60,10 +86,11 @@
     const s = res.raw_stats;
     const d = res.decoded;
 
+    const m = res.manual || {};
     $('cVehicle').textContent = res.vehicle || 'Onbekend';
     $('cFile').textContent = res.source_filename || '—';
     $('cDecoder').textContent = res.decoder_id;
-    $('cVin').textContent = d.vin && d.vin.value ? d.vin.value : 'onbekend';
+    $('cVin').textContent = effField(res, 'vin').value || 'onbekend';
 
     const sohVal = effectiveSoh(res);
     if (sohVal !== null) {
@@ -77,9 +104,15 @@
     // invoervelden vullen vanuit het record
     $('inpKenteken').value = res.kenteken || '';
     $('inpVehicle').value = res._userVehicle || '';
-    $('inpSoh').value = res.manual && res.manual.soh != null ? res.manual.soh : '';
-    $('inpMileage').value = res.mileage || '';
+    $('inpVin').value = m.vin || '';
+    $('inpMileage').value = res.mileage ?? '';
     $('inpNote').value = res.note || '';
+    $('inpSoh').value = m.soh ?? '';
+    $('inpPackV').value = m.pack_voltage ?? '';
+    $('inpCellHi').value = m.cell_high ?? '';
+    $('inpCellLo').value = m.cell_low ?? '';
+    $('inpCellDiff').value = m.cell_diff ?? '';
+    $('inpCapacity').value = m.capacity ?? '';
 
     $('sFrames').textContent = s.frame_count;
     $('sIds').textContent = s.can_ids.length + ' (' + s.can_ids.join(', ') + ')';
@@ -87,23 +120,37 @@
     $('sSpan').textContent = (s.t_start || '—') + ' → ' + (s.t_end || '—');
     $('sErr').textContent = s.parse_errors;
 
-    // velden-tabel
-    const body = $('fieldsBody');
-    body.innerHTML = '';
-    for (const key of Object.keys(d)) {
-      const f = d[key];
-      const tr = document.createElement('tr');
-      const known = f.value !== null && f.value !== undefined;
-      tr.innerHTML =
-        `<td><strong>${FIELD_LABELS[key] || key}</strong></td>` +
-        `<td class="${known ? '' : 'stat-unknown'}">${fmtVal(f)}</td>` +
-        `<td><code>${f.source || '—'}</code></td>` +
-        `<td><span class="chip ${confChipClass(f.confidence)}">${f.confidence}</span></td>`;
-      body.appendChild(tr);
-    }
+    renderCertFields(res);
 
     $('result').classList.remove('hidden');
     $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // certificaat-velden-tabel + grote SOH + VIN (handmatig > gedecodeerd > onbekend)
+  function renderCertFields(res) {
+    const sohVal = effectiveSoh(res);
+    $('cSohBig').textContent = sohVal !== null ? sohVal + '%' : 'onbekend';
+    $('cSohBig').classList.toggle('unknown', sohVal === null);
+    $('cVin').textContent = effField(res, 'vin').value || 'onbekend';
+
+    const body = $('fieldsBody');
+    body.innerHTML = '';
+    for (const [key, label, unit] of CERT_FIELDS) {
+      const ef = effField(res, key);
+      const known = ef.value !== null && ef.value !== undefined && ef.value !== '';
+      const shown = known ? (unit ? `${ef.value} ${unit}` : `${ef.value}`) : 'onbekend';
+      const chip = ef.source === 'ingevuld'
+        ? '<span class="chip ok">ingevuld</span>'
+        : ef.source === 'logbestand'
+        ? '<span class="chip laag">logbestand</span>'
+        : '<span class="chip nvt">onbekend</span>';
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td><strong>${label}</strong></td>` +
+        `<td class="${known ? '' : 'stat-unknown'}">${shown}</td>` +
+        `<td>${chip}</td>`;
+      body.appendChild(tr);
+    }
   }
 
   /* ---- bestand verwerken ---------------------------------------------------- */
@@ -284,6 +331,17 @@
       collectInputs(current);
       window.Certificate.openCertificate(current);
     });
+
+    // live bijwerken van het overzicht terwijl je de velden invult
+    ['inpKenteken','inpVehicle','inpVin','inpMileage','inpNote','inpSoh','inpPackV',
+     'inpCellHi','inpCellLo','inpCellDiff','inpCapacity'].forEach((id) =>
+      $(id).addEventListener('input', () => {
+        if (!current) return;
+        collectInputs(current);
+        renderCertFields(current);
+        $('cVehicle').textContent = current.vehicle || 'Onbekend';
+      })
+    );
 
     // lijst-besturing
     let searchTimer;

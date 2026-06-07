@@ -37,7 +37,7 @@
 
   <!-- Door gebruiker in te vullen voertuig-/metinggegevens -->
   <div class="card" style="margin-bottom:14px;">
-    <div class="card-name">Voertuiggegevens <span class="muted" style="font-weight:400;font-size:12px;">(vul zelf aan)</span></div>
+    <div class="card-name">Voertuiggegevens <span class="muted" style="font-weight:400;font-size:12px;">(vul in vanaf je diagnose)</span></div>
     <div class="form-grid">
       <label>Kenteken
         <input type="text" id="inpKenteken" placeholder="bijv. 12-ABC-3" maxlength="12" style="text-transform:uppercase">
@@ -45,11 +45,33 @@
       <label>Merk &amp; model
         <input type="text" id="inpVehicle" placeholder="BMW 3-serie 330e">
       </label>
-      <label>SOH % <span class="muted">(van diagnose)</span>
-        <input type="number" id="inpSoh" placeholder="89" min="0" max="100" step="0.1">
+      <label>VIN
+        <input type="text" id="inpVin" placeholder="WBA5P51000FL00743" maxlength="17" style="text-transform:uppercase">
       </label>
       <label>Kilometerstand
         <input type="number" id="inpMileage" placeholder="117548" min="0">
+      </label>
+    </div>
+
+    <div class="card-name" style="margin-top:16px;">Batterijgegevens</div>
+    <div class="form-grid">
+      <label>SOH %
+        <input type="number" id="inpSoh" placeholder="89" min="0" max="100" step="0.1">
+      </label>
+      <label>Packspanning (V)
+        <input type="number" id="inpPackV" placeholder="341.96" min="0" step="0.01">
+      </label>
+      <label>Hoogste celspanning (V)
+        <input type="number" id="inpCellHi" placeholder="3.571" min="0" step="0.001">
+      </label>
+      <label>Laagste celspanning (V)
+        <input type="number" id="inpCellLo" placeholder="3.553" min="0" step="0.001">
+      </label>
+      <label>Celverschil (mV) <span class="muted">(auto)</span>
+        <input type="number" id="inpCellDiff" placeholder="18" min="0" step="1">
+      </label>
+      <label>Bruikbare capaciteit (kWh)
+        <input type="number" id="inpCapacity" placeholder="9.35" min="0" step="0.01">
       </label>
       <label class="full">Notitie
         <input type="text" id="inpNote" placeholder="bijv. ingenomen, klant Jansen">
@@ -80,19 +102,19 @@
     </div>
   </div>
 
-  <h3>Afgeleide signalen</h3>
-  <div class="callout warn">
-    <div class="callout-title">⚠️ Experimenteel — lees dit even</div>
-    <div class="callout-body">
-      Onderstaande waarden zijn <strong>kandidaat-afleidingen</strong> uit ruwe databytes en nog
-      <strong>niet geverifieerd</strong>. Velden met <em>"onbekend"</em> staan niet in dit type
-      (passieve) opname. Pas later de byte-mapping aan zodra er logs met diagnose-vraag/antwoord zijn.
-    </div>
-  </div>
+  <h3>Certificaat-gegevens</h3>
   <table>
-    <thead><tr><th>Veld</th><th>Waarde</th><th>Bron-byte</th><th>Zekerheid</th></tr></thead>
+    <thead><tr><th>Veld</th><th>Waarde</th><th>Bron</th></tr></thead>
     <tbody id="fieldsBody"></tbody>
   </table>
+  <div class="callout">
+    <div class="callout-title">📌 Bron van de gegevens</div>
+    <div class="callout-body">
+      <span class="chip ok">ingevuld</span> = door jou ingevoerd ·
+      <span class="chip nvt">onbekend</span> = niet ingevuld en niet in de passieve CAN-log aanwezig.
+      Tip: celverschil wordt automatisch berekend uit hoogste − laagste celspanning.
+    </div>
+  </div>
 
   <div class="btn-row">
     <button class="btn primary" id="saveBtn">💾 Opslaan in database</button>

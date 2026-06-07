@@ -8,11 +8,13 @@
 (function (global) {
   'use strict';
 
-  function val(rec, key) {
+  // handmatig ingevulde waarde heeft voorrang, daarna gedecodeerd
+  function val(rec, key, unit) {
+    const m = rec.manual && rec.manual[key];
+    if (m != null && m !== '') return unit ? `${m} ${unit}` : `${m}`;
     const f = rec.decoded && rec.decoded[key];
-    return f && f.value !== null && f.value !== undefined
-      ? (f.unit ? `${f.value} ${f.unit}` : `${f.value}`)
-      : 'onbekend';
+    if (f && f.value != null) return f.unit ? `${f.value} ${f.unit}` : `${f.value}`;
+    return 'onbekend';
   }
 
   function fmtDate(iso) {
@@ -36,7 +38,7 @@
     const kenteken = rec.kenteken || '—';
     const vehicle = rec.vehicle || 'Onbekend';
     const mileage = rec.mileage ? Number(rec.mileage).toLocaleString('nl-NL') + ' km' : '—';
-    const vin = (rec.decoded && rec.decoded.vin && rec.decoded.vin.value) || '—';
+    const vin = (rec.manual && rec.manual.vin) || (rec.decoded && rec.decoded.vin && rec.decoded.vin.value) || '—';
     const note = rec.note || '';
 
     return `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
@@ -96,10 +98,11 @@
 
 <h2>Hoogspanningsbatterij</h2>
 <table>
-  <tr><td class="k">Packspanning</td><td class="v">${val(rec, 'pack_voltage')}</td></tr>
-  <tr><td class="k">Hoogste celspanning</td><td class="v">${val(rec, 'cell_high')}</td></tr>
-  <tr><td class="k">Laagste celspanning</td><td class="v">${val(rec, 'cell_low')}</td></tr>
-  <tr><td class="k">Maximaal celverschil</td><td class="v">${val(rec, 'cell_diff')}</td></tr>
+  <tr><td class="k">Bruikbare capaciteit</td><td class="v">${val(rec, 'capacity', 'kWh')}</td></tr>
+  <tr><td class="k">Packspanning</td><td class="v">${val(rec, 'pack_voltage', 'V')}</td></tr>
+  <tr><td class="k">Hoogste celspanning</td><td class="v">${val(rec, 'cell_high', 'V')}</td></tr>
+  <tr><td class="k">Laagste celspanning</td><td class="v">${val(rec, 'cell_low', 'V')}</td></tr>
+  <tr><td class="k">Maximaal celverschil</td><td class="v">${val(rec, 'cell_diff', 'mV')}</td></tr>
 </table>
 
 <h2>Bronbestand (CAN-log)</h2>
