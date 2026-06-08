@@ -215,11 +215,27 @@
    * ------------------------------------------------------------------------ */
   const h2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 
+  // Zoek in de DID-responses een volledige cel-array (N cellen × 2 bytes in mV).
+  // Geeft {hi, lo, n, cells} in mV, of null.
+  function detectCellArray(dids) {
+    for (const k in dids) {
+      const pl = dids[k];
+      if (pl.length < 40 || pl.length % 2) continue;
+      const vals = [];
+      for (let i = 0; i < pl.length; i += 2) vals.push((pl[i] << 8) | pl[i + 1]);
+      const inRange = vals.filter((v) => v >= 2500 && v <= 4300);
+      if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) {
+        return { hi: Math.max(...inRange), lo: Math.min(...inRange), n: inRange.length, cells: inRange };
+      }
+    }
+    return null;
+  }
+
   // Merk/model afleiden uit de VIN (WMI = wereldfabrikant-code).
   // Brede dekking voor grote EV/hybride-merken. 3-tekens WMI; anders 2-tekens fallback.
   const WMI_MAP = {
     // BMW / Mini
-    WBY: 'BMW i3', WBA: 'BMW 3-serie', WBS: 'BMW M', WBX: 'BMW X', WBN: 'BMW',
+    WBY: 'BMW i3', WBA: 'BMW', WBS: 'BMW M', WBX: 'BMW X', WBN: 'BMW',
     WB1: 'BMW', '4US': 'BMW', '5UX': 'BMW X', WMW: 'Mini Cooper',
     // Volvo / Polestar
     YV1: 'Volvo', YV4: 'Volvo XC', LYV: 'Volvo', YV2: 'Volvo', LPS: 'Polestar', YSM: 'Polestar',
@@ -309,8 +325,14 @@
         if (vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'UDS DID F190', 'Uit diagnose (VIN).');
       }
 
-      // Hoogste/laagste celspanning (DID DDBF = twee 16-bit waarden in mV)
-      if (dids.DDBF && dids.DDBF.length >= 4) {
+      // Celspanningen: eerst een volledige cel-array (bv. DFA5 = 96 cellen),
+      // anders DID DDBF (twee 16-bit min/max waarden in mV).
+      const cellsArr = detectCellArray(dids);
+      if (cellsArr) {
+        fields.cell_high = field(+(cellsArr.hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cellsArr.n} cellen.`);
+        fields.cell_low = field(+(cellsArr.lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cellsArr.n} cellen.`);
+        fields.cell_diff = field(cellsArr.hi - cellsArr.lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
+      } else if (dids.DDBF && dids.DDBF.length >= 4) {
         const a = (dids.DDBF[0] << 8) | dids.DDBF[1];
         const b = (dids.DDBF[2] << 8) | dids.DDBF[3];
         const hi = Math.max(a, b), lo = Math.min(a, b);
@@ -321,7 +343,7 @@
         }
       }
 
-      // Packspanning (DID DD68 of DDB4 = 16-bit ×0,01 V) -> ~349 V voor i3
+      // Packspanning (DID DD68 of DDB4 = 16-bit ×0,01 V)
       const pv = dids.DD68 || dids.DDB4;
       if (pv && pv.length >= 2) {
         const raw = (pv[0] << 8) | pv[1];
@@ -332,11 +354,15 @@
         }
       }
 
-      // SOH (DID DD7B = 1 byte percentage)
-      if (dids.DD7B && dids.DD7B.length >= 1) {
-        const v = dids.DD7B[0];
-        if (v > 0 && v <= 100) {
-          fields.soh = field(v, '%', 'gemiddeld', 'UDS DID DD7B', 'Uit diagnose (te bevestigen).');
+      // SOH + SOC + temperatuur uit DID DDBC = [SOC, SOH, temp] ×10
+      if (dids.DDBC && dids.DDBC.length >= 4) {
+        const soc = ((dids.DDBC[0] << 8) | dids.DDBC[1]) / 10;
+        const soh = ((dids.DDBC[2] << 8) | dids.DDBC[3]) / 10;
+        if (soh > 0 && soh <= 110) {
+          fields.soh = field(+soh.toFixed(1), '%', 'gemiddeld', 'UDS DID DDBC', 'Uit diagnose (te bevestigen).');
+        }
+        if (soc >= 0 && soc <= 100) {
+          fields.soc = field(+soc.toFixed(1), '%', 'gemiddeld', 'UDS DID DDBC', 'Laadstand (SOC).');
         }
       }
 
@@ -418,23 +444,14 @@
 
       const fields = {};
 
-      // Cel-array: DID-payload met veel 16-bit waarden in mV-bereik
-      let cells = null;
-      for (const k in dids) {
-        const pl = dids[k];
-        if (pl.length < 40 || pl.length % 2) continue;
-        const vals = [];
-        for (let i = 0; i < pl.length; i += 2) vals.push((pl[i] << 8) | pl[i + 1]);
-        const inRange = vals.filter((v) => v >= 2500 && v <= 4300);
-        if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) { cells = inRange; break; }
-      }
-      if (cells) {
-        const hi = Math.max(...cells), lo = Math.min(...cells);
-        const pack = cells.reduce((a, b) => a + b, 0) / 1000;
-        fields.cell_high = field(+(hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
-        fields.cell_low = field(+(lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
-        fields.cell_diff = field(hi - lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
-        fields.pack_voltage = field(+pack.toFixed(2), 'V', 'hoog', 'UDS cel-array (som)', `Som van ${cells.length} cellen.`);
+      // Cel-array (N cellen × 2 bytes in mV) -> hoogste/laagste + packspanning (som)
+      const ca = detectCellArray(dids);
+      if (ca) {
+        const pack = ca.cells.reduce((a, b) => a + b, 0) / 1000;
+        fields.cell_high = field(+(ca.hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${ca.n} cellen.`);
+        fields.cell_low = field(+(ca.lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${ca.n} cellen.`);
+        fields.cell_diff = field(ca.hi - ca.lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
+        fields.pack_voltage = field(+pack.toFixed(2), 'V', 'hoog', 'UDS cel-array (som)', `Som van ${ca.n} cellen.`);
       }
 
       // Capaciteit (Volvo: DID 4947/F442 ~ energie in Wh) — experimenteel, te bevestigen

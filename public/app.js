@@ -10,6 +10,7 @@
   /* ---- certificaat-velden (volgorde, label, eenheid) ------------------------ */
   const CERT_FIELDS = [
     ['soh', 'SOH (gezondheid)', '%'],
+    ['soc', 'SOC (laadstand)', '%'],
     ['pack_voltage', 'Packspanning', 'V'],
     ['cell_high', 'Hoogste celspanning', 'V'],
     ['cell_low', 'Laagste celspanning', 'V'],
