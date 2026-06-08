@@ -227,9 +227,14 @@
       const vals = [];
       for (let i = 0; i < pl.length; i += 2) vals.push((pl[i] << 8) | pl[i + 1]);
       const inRange = vals.filter((v) => v >= 2500 && v <= 4300);
-      if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) {
-        return { hi: Math.max(...inRange), lo: Math.min(...inRange), n: inRange.length, cells: inRange };
-      }
+      if (inRange.length < 20 || inRange.length < vals.length * 0.6) continue;
+      // Echte cellen liggen dicht bij elkaar -> filter naar de hoofd-cluster
+      // (sommige DID's bevatten ook opvul-/historie-waarden die geen cel zijn).
+      const sorted = [...inRange].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const cells = inRange.filter((v) => Math.abs(v - median) <= 150);
+      if (cells.length < 20) continue;
+      return { hi: Math.max(...cells), lo: Math.min(...cells), n: cells.length, cells };
     }
     return null;
   }
@@ -328,13 +333,16 @@
         if (vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'UDS DID F190', 'Uit diagnose (VIN).');
       }
 
-      // Celspanningen: eerst een volledige cel-array (bv. DFA5 = 96 cellen),
+      // Celspanningen: eerst een volledige cel-array (bv. DFA5 = 96 slots, ~80 cellen),
       // anders DID DDBF (twee 16-bit min/max waarden in mV).
       const cellsArr = detectCellArray(dids);
       if (cellsArr) {
         fields.cell_high = field(+(cellsArr.hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cellsArr.n} cellen.`);
         fields.cell_low = field(+(cellsArr.lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cellsArr.n} cellen.`);
         fields.cell_diff = field(cellsArr.hi - cellsArr.lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
+        // packspanning = som van de cellen (komt overeen met Autel "totale spanning")
+        fields.pack_voltage = field(+(cellsArr.cells.reduce((a, b) => a + b, 0) / 1000).toFixed(2),
+          'V', 'hoog', 'UDS cel-array (som)', `Som van ${cellsArr.n} cellen.`);
       } else if (dids.DDBF && dids.DDBF.length >= 4) {
         const a = (dids.DDBF[0] << 8) | dids.DDBF[1];
         const b = (dids.DDBF[2] << 8) | dids.DDBF[3];
@@ -346,26 +354,29 @@
         }
       }
 
-      // Packspanning (DID DD68 of DDB4 = 16-bit ×0,01 V)
-      const pv = dids.DD68 || dids.DDB4;
-      if (pv && pv.length >= 2) {
-        const raw = (pv[0] << 8) | pv[1];
-        const volts = +(raw / 100).toFixed(2);
-        if (volts > 100 && volts < 500) {
-          fields.pack_voltage = field(volts, 'V', 'gemiddeld',
-            'UDS DID ' + (dids.DD68 ? 'DD68' : 'DDB4') + ' ×0,01', 'Uit diagnose.');
+      // Packspanning uit dedicated DID DD68/DDB4 (×0,01 V) als er geen cel-array is
+      if (!fields.pack_voltage) {
+        const pv = dids.DD68 || dids.DDB4;
+        if (pv && pv.length >= 2) {
+          const volts = +(((pv[0] << 8) | pv[1]) / 100).toFixed(2);
+          if (volts > 100 && volts < 500) {
+            fields.pack_voltage = field(volts, 'V', 'gemiddeld',
+              'UDS DID ' + (dids.DD68 ? 'DD68' : 'DDB4') + ' ×0,01', 'Uit diagnose.');
+          }
         }
       }
 
-      // SOH + SOC + temperatuur uit DID DDBC = [SOC, SOH, temp] ×10
+      // DID DDBC = [SOC, SOH(intern), …] ×10.
+      // SOC = 1e waarde (laadstand), SOH = 2e waarde (BMW-interne capaciteit-SOH).
       if (dids.DDBC && dids.DDBC.length >= 4) {
         const soc = ((dids.DDBC[0] << 8) | dids.DDBC[1]) / 10;
         const soh = ((dids.DDBC[2] << 8) | dids.DDBC[3]) / 10;
-        if (soh > 0 && soh <= 110) {
-          fields.soh = field(+soh.toFixed(1), '%', 'gemiddeld', 'UDS DID DDBC', 'Uit diagnose (te bevestigen).');
-        }
         if (soc >= 0 && soc <= 100) {
-          fields.soc = field(+soc.toFixed(1), '%', 'gemiddeld', 'UDS DID DDBC', 'Laadstand (SOC).');
+          fields.soc = field(+soc.toFixed(1), '%', 'hoog', 'UDS DID DDBC (1e)', 'Laadstand (SOC).');
+        }
+        if (soh > 0 && soh <= 110) {
+          fields.soh = field(+soh.toFixed(1), '%', 'gemiddeld', 'UDS DID DDBC (2e)',
+            'BMW-interne SOH; kan afwijken van Autel-SOH (zie uitleg).');
         }
       }
 

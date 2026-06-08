@@ -161,10 +161,16 @@
         : ef.source === 'logbestand'
         ? '<span class="chip laag">logbestand</span>'
         : '<span class="chip nvt">onbekend</span>';
+      // kleurcodering: celverschil groen <50, oranje 50-99, rood >=100 mV
+      let valCls = known ? '' : 'stat-unknown';
+      if (key === 'cell_diff' && known) {
+        const d = Number(ef.value);
+        valCls = d < 50 ? 'stat-good' : d < 100 ? 'stat-warn' : 'stat-bad';
+      }
       const tr = document.createElement('tr');
       tr.innerHTML =
         `<td><strong>${label}</strong></td>` +
-        `<td class="${known ? '' : 'stat-unknown'}">${shown}</td>` +
+        `<td class="${valCls}">${shown}</td>` +
         `<td>${chip}</td>`;
       body.appendChild(tr);
     }
