@@ -29,6 +29,23 @@ database, sleep-bestand-erin → automatisch een record, PDF genereren en mailen
 3. **Opslaan** → de meting komt met datum in het archief.
 4. Later **terugzoeken** op kenteken/datum/maand en **PDF printen** per auto.
 
+## Ondersteunde auto's
+
+De app leest **drie soorten diagnose-logs** automatisch uit:
+- **BMW / Mini** (UDS via tester 6F1): VIN, SOH, packspanning, hoogste/laagste cel.
+- **Volvo / Polestar** (extended ID's): VIN, cellen + packspanning (96-cel array), capaciteit (exp.).
+- **OBD-II standaard** (7E8, bv. Jaguar, en de meeste merken): VIN (Mode 09) + cel-arrays.
+
+**Merk-herkenning uit de VIN** voor alle grote EV/hybride-merken: BMW, Mini, Volvo, Polestar,
+Tesla, Nissan, Hyundai, Kia, VW, Audi, Škoda, SEAT/Cupra, Mercedes, Smart, Renault, Peugeot,
+Citroën, DS, Opel, Fiat, Jaguar, Land Rover, Porsche, Toyota, Lexus, Honda, Mazda, Subaru,
+Mitsubishi, MG, BYD, Ford, e.a.
+
+**Generiek (merk-overstijgend):** VIN + cel-array (hoogste/laagste cel, celverschil,
+packspanning) worden voor elk merk gelezen zodra die in de log staan. Merk-specifieke
+SOH/capaciteit worden per merk toegevoegd (BMW gevalideerd; andere via een ijkpunt of
+publieke bron zoals OVMS/wican-fw — zie `docs/CONTEXT.md`).
+
 ## Belangrijke bevinding (onderzoek)
 
 Het voorbeeldbestand is een **passieve** CAN-opname. De certificaat-getallen (SOH 89%,

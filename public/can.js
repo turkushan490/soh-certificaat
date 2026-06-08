@@ -215,26 +215,52 @@
    * ------------------------------------------------------------------------ */
   const h2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 
-  // Merk/model afleiden uit de VIN (WMI = wereldfabrikant-code, eerste 3 tekens)
+  // Merk/model afleiden uit de VIN (WMI = wereldfabrikant-code).
+  // Brede dekking voor grote EV/hybride-merken. 3-tekens WMI; anders 2-tekens fallback.
+  const WMI_MAP = {
+    // BMW / Mini
+    WBY: 'BMW i3', WBA: 'BMW 3-serie', WBS: 'BMW M', WBX: 'BMW X', WBN: 'BMW',
+    WB1: 'BMW', '4US': 'BMW', '5UX': 'BMW X', WMW: 'Mini Cooper',
+    // Volvo / Polestar
+    YV1: 'Volvo', YV4: 'Volvo XC', LYV: 'Volvo', YV2: 'Volvo', LPS: 'Polestar', YSM: 'Polestar',
+    // Tesla
+    '5YJ': 'Tesla', '7SA': 'Tesla', LRW: 'Tesla', XP7: 'Tesla', '7G2': 'Tesla',
+    // Nissan
+    '1N4': 'Nissan', SJN: 'Nissan', JN1: 'Nissan', JN8: 'Nissan', '5N1': 'Nissan',
+    // Hyundai / Kia / Genesis
+    KMH: 'Hyundai', TMA: 'Hyundai', KM8: 'Hyundai', '5NM': 'Hyundai', NLH: 'Hyundai',
+    KNA: 'Kia', KND: 'Kia', U5Y: 'Kia', '3KP': 'Kia', KNE: 'Kia', '5XY': 'Kia', KMU: 'Genesis',
+    // VW-groep
+    WVW: 'Volkswagen', WVG: 'Volkswagen', '1VW': 'Volkswagen', '3VW': 'Volkswagen', WV1: 'Volkswagen', WV2: 'Volkswagen',
+    WAU: 'Audi', WA1: 'Audi', TRU: 'Audi', TMB: 'Škoda', TMP: 'Škoda', VSS: 'SEAT/Cupra', VSE: 'SEAT/Cupra',
+    // Mercedes
+    W1K: 'Mercedes-Benz', WDD: 'Mercedes-Benz', WDB: 'Mercedes-Benz', WDC: 'Mercedes-Benz',
+    '4JG': 'Mercedes-Benz', W1N: 'Mercedes-Benz', W1V: 'Mercedes-Benz', WME: 'Smart', W1A: 'Smart',
+    // Stellantis (PSA/FCA)
+    VF1: 'Renault', VF2: 'Renault', VF3: 'Peugeot', VR3: 'Peugeot', VF7: 'Citroën', VR7: 'Citroën',
+    VR1: 'DS', W0L: 'Opel', W0V: 'Opel', ZFA: 'Fiat', ZAR: 'Alfa Romeo',
+    // JLR
+    SAD: 'Jaguar', SAJ: 'Jaguar', SAL: 'Land Rover',
+    // Porsche
+    WP0: 'Porsche', WP1: 'Porsche',
+    // Japans / overig
+    JTD: 'Toyota', JTM: 'Toyota', JTN: 'Toyota', '2T3': 'Toyota', '5TD': 'Toyota', NMT: 'Toyota',
+    JTH: 'Lexus', '2T2': 'Lexus', JHM: 'Honda', SHH: 'Honda', '1HG': 'Honda', JHL: 'Honda',
+    JM1: 'Mazda', JMZ: 'Mazda', JF1: 'Subaru', JF2: 'Subaru', JA3: 'Mitsubishi', JMB: 'Mitsubishi',
+    LSJ: 'MG', LGX: 'BYD', LC0: 'BYD', '1FA': 'Ford', WF0: 'Ford', NM0: 'Ford',
+    '1G1': 'Chevrolet', KL8: 'Chevrolet', '1G6': 'Cadillac',
+  };
+  // 2-tekens fallback voor merken met veel WMI-varianten
+  const WMI2_MAP = { YV: 'Volvo', WB: 'BMW', WM: 'Mini', SA: 'Jaguar/Land Rover', WV: 'Volkswagen',
+    WA: 'Audi', WD: 'Mercedes-Benz', W1: 'Mercedes-Benz', KM: 'Hyundai', KN: 'Kia', VF: 'Frans (PSA/Renault)',
+    '5Y': 'Tesla', LR: 'Tesla', '1N': 'Nissan', JT: 'Toyota', ZF: 'Fiat' };
+
   function vinToVehicle(vin) {
-    if (!vin || vin.length < 3) return 'BMW/Mini (UDS-diagnose)';
-    const wmi = vin.slice(0, 3).toUpperCase();
-    const map = {
-      WMW: 'Mini Cooper',
-      WBY: 'BMW i3',
-      WBA: 'BMW 3-serie',
-      WBS: 'BMW M',
-      WBX: 'BMW X',
-      WBN: 'BMW',
-      '4US': 'BMW (US)',
-      WB1: 'BMW',
-      YV1: 'Volvo',
-      YV4: 'Volvo XC',
-      LYV: 'Volvo',
-      SAD: 'Jaguar',
-      SAJ: 'Jaguar',
-    };
-    return map[wmi] || 'BMW/Mini (UDS-diagnose)';
+    if (!vin || vin.length < 3) return null;
+    const w3 = vin.slice(0, 3).toUpperCase();
+    if (WMI_MAP[w3]) return WMI_MAP[w3];
+    const w2 = vin.slice(0, 2).toUpperCase();
+    return WMI2_MAP[w2] || 'Onbekend merk';
   }
 
   function reassembleUDS(parsed) {
@@ -322,7 +348,7 @@
 
       // merk/model afleiden uit de VIN (WMI = eerste 3 tekens)
       const vinVal = fields.vin && fields.vin.value;
-      const model = vinToVehicle(vinVal);
+      const model = vinToVehicle(vinVal) || 'BMW/Mini (UDS-diagnose)';
 
       // alle ruwe DID's meegeven voor latere kalibratie
       const rawDids = {};
@@ -409,6 +435,15 @@
         fields.cell_low = field(+(lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
         fields.cell_diff = field(hi - lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
         fields.pack_voltage = field(+pack.toFixed(2), 'V', 'hoog', 'UDS cel-array (som)', `Som van ${cells.length} cellen.`);
+      }
+
+      // Capaciteit (Volvo: DID 4947/F442 ~ energie in Wh) — experimenteel, te bevestigen
+      const capDid = dids['4947'] || dids['F442'];
+      if (capDid && capDid.length >= 2) {
+        const wh = (capDid[0] << 8) | capDid[1];
+        if (wh > 3000 && wh < 200000) {
+          fields.capacity = field(+(wh / 1000).toFixed(1), 'kWh', 'laag', 'UDS DID 4947', 'Experimenteel, te bevestigen.');
+        }
       }
 
       // VIN: standaard DID F190 of OBD Mode 09
