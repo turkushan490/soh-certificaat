@@ -169,6 +169,9 @@
     id: 'bmw_g20_phev',
     label: 'BMW 3-serie 330e (PHEV)',
     matches(parsed, stats) {
+      // Alleen een PASSIEVE opname: 7Cx-broadcasts aanwezig, maar GEEN actieve
+      // UDS-diagnose (6F1). Bestanden met 6F1 horen bij bmw_uds.
+      if (stats.can_ids.includes('6F1')) return false;
       const need = ['7C1', '7C3', '7C7'];
       return need.every(id => stats.can_ids.includes(id));
     },
