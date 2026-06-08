@@ -1,5 +1,8 @@
 # 🔋 SOH Batterij-certificaat
 
+**▶️ Live demo (geen installatie/database nodig):** https://turkushan490.github.io/soh-certificaat/
+
+
 Lees een **CAN-bus logbestand** (`.txt`) van een elektrische/hybride auto in en toon de
 batterijgegevens in een overzicht in donkere huisstijl. Uiteindelijk: online inlogsysteem,
 database, sleep-bestand-erin → automatisch een record, PDF genereren en mailen.
