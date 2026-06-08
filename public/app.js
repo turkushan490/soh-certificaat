@@ -29,7 +29,7 @@
 
   /* ---- lijst-status --------------------------------------------------------- */
   const PAGE_SIZE = 25;
-  const listState = { search: '', month: '', sort: 'date_desc', page: 1, all: [] };
+  const listState = { search: '', year: '', month: '', day: '', sort: 'date_desc', page: 1, all: [] };
 
   const confChipClass = (c) =>
     c === 'laag' ? 'laag' : c === 'zeer laag' ? 'zeer' : 'nvt';
@@ -205,12 +205,22 @@
     const v = r.decoded && r.decoded.vin;
     return v && v.value ? v.value : '';
   }
-  function recMonth(r) { return (r.uploaded_at || '').slice(0, 7); } // YYYY-MM
+  // datumdelen van een record (lokale tijd)
+  function recParts(r) {
+    const d = new Date(r.uploaded_at);
+    return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), date: d };
+  }
+  const MONTHS_NL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
+    'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 
   function applyFilters() {
     const q = listState.search.trim().toLowerCase();
+    const fy = listState.year, fm = listState.month, fd = listState.day;
     let list = listState.all.filter((r) => {
-      if (listState.month && recMonth(r) !== listState.month) return false;
+      const p = recParts(r);
+      if (fy && String(p.y) !== fy) return false;
+      if (fm && String(p.m) !== fm) return false;
+      if (fd && String(p.d) !== fd) return false;
       if (!q) return true;
       const hay = [r.vehicle, r.source_filename, recVin(r), r.kenteken, r.note].join(' ').toLowerCase();
       return hay.includes(q);
@@ -225,16 +235,51 @@
     return list;
   }
 
-  function populateMonths() {
-    const sel = $('monthFilter');
-    const months = [...new Set(listState.all.map(recMonth).filter(Boolean))].sort().reverse();
-    const cur = listState.month;
-    sel.innerHTML = '<option value="">Alle maanden</option>' +
-      months.map((m) => {
-        const [y, mo] = m.split('-');
-        const label = new Date(y, mo - 1, 1).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
-        return `<option value="${m}" ${m === cur ? 'selected' : ''}>${label}</option>`;
-      }).join('');
+  // kalenderfilters (jaar -> maand -> dag) cascaderend vullen op basis van data
+  function populateCalendarFilters() {
+    const all = listState.all.map(recParts);
+    const opt = (v, label, sel) => `<option value="${v}" ${String(v) === String(sel) ? 'selected' : ''}>${label}</option>`;
+
+    // jaren
+    const years = [...new Set(all.map((p) => p.y))].sort((a, b) => b - a);
+    if (listState.year && !years.includes(+listState.year)) listState.year = '';
+    $('yearFilter').innerHTML = '<option value="">Jaar</option>' +
+      years.map((y) => opt(y, y, listState.year)).join('');
+
+    // maanden binnen gekozen jaar (of alle)
+    const inY = all.filter((p) => !listState.year || p.y === +listState.year);
+    const months = [...new Set(inY.map((p) => p.m))].sort((a, b) => a - b);
+    if (listState.month && !months.includes(+listState.month)) listState.month = '';
+    $('monthFilter').innerHTML = '<option value="">Maand</option>' +
+      months.map((m) => opt(m, MONTHS_NL[m - 1], listState.month)).join('');
+
+    // dagen binnen gekozen jaar+maand
+    const inM = inY.filter((p) => !listState.month || p.m === +listState.month);
+    const days = [...new Set(inM.map((p) => p.d))].sort((a, b) => a - b);
+    if (listState.day && !days.includes(+listState.day)) listState.day = '';
+    $('dayFilter').innerHTML = '<option value="">Dag</option>' +
+      days.map((d) => opt(d, d, listState.day)).join('');
+  }
+
+  function recordCard(r) {
+    const sv = effectiveSoh(r);
+    const known = sv !== null;
+    const soh = known ? sv + '%' : '?';
+    const sohCls = known ? (sv >= 80 ? 'stat-good' : sv >= 60 ? 'stat-warn' : 'stat-bad') : 'stat-unknown';
+    const head = r.kenteken ? esc(r.kenteken) : esc(r.vehicle || 'Onbekend');
+    const sub = r.kenteken ? esc(r.vehicle || '') : (recVin(r) ? esc(recVin(r)) : '');
+    const t = new Date(r.uploaded_at);
+    const time = t.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+    const div = document.createElement('div');
+    div.className = 'record';
+    div.dataset.id = r.id;
+    div.innerHTML =
+      `<button class="r-del" data-del="${r.id}" title="Verwijderen">×</button>` +
+      `<div class="r-main">${head}</div>` +
+      (sub ? `<div class="r-sub">${sub}</div>` : '') +
+      `<div class="r-meta"><span class="r-soh ${sohCls}">${soh} SOH</span> · ${time}` +
+      (r.note ? ` · ${esc(r.note)}` : '') + `</div>`;
+    return div;
   }
 
   function renderList() {
@@ -249,7 +294,7 @@
       return;
     }
     if (!filtered.length) {
-      wrap.innerHTML = '<p class="muted">Geen metingen gevonden voor deze zoekopdracht.</p>';
+      wrap.innerHTML = '<p class="muted">Geen metingen voor deze filters.</p>';
       pager.innerHTML = '';
       return;
     }
@@ -258,28 +303,26 @@
     if (listState.page > pages) listState.page = pages;
     const start = (listState.page - 1) * PAGE_SIZE;
     const slice = filtered.slice(start, start + PAGE_SIZE);
+    const byDate = listState.sort === 'date_desc' || listState.sort === 'date_asc';
 
     wrap.innerHTML = '';
+    let lastDay = null;
     for (const r of slice) {
-      const sv = effectiveSoh(r);
-      const known = sv !== null;
-      const soh = known ? sv + '%' : 'onbekend';
-      const sohCls = known ? (sv >= 80 ? 'stat-good' : sv >= 60 ? 'stat-warn' : 'stat-bad') : 'stat-unknown';
-      const title = r.kenteken ? esc(r.kenteken) + ' · ' + esc(r.vehicle || 'Onbekend') : esc(r.vehicle || 'Onbekend');
-      const div = document.createElement('div');
-      div.className = 'record';
-      div.dataset.id = r.id;
-      div.innerHTML =
-        `<div><div class="r-main">${title}</div>` +
-        `<div class="r-meta">${esc(r.source_filename || '—')} · ${r.raw_stats.frame_count} frames · ` +
-        `${new Date(r.uploaded_at).toLocaleString('nl-NL')}` +
-        (r.note ? ` · ${esc(r.note)}` : '') + `</div></div>` +
-        `<div class="r-right"><span class="r-soh ${sohCls}">${soh} SOH</span>` +
-        `<button class="r-del" data-del="${r.id}" title="Verwijderen">verwijderen</button></div>`;
-      wrap.appendChild(div);
+      if (byDate) {
+        const p = recParts(r);
+        const key = `${p.y}-${p.m}-${p.d}`;
+        if (key !== lastDay) {
+          lastDay = key;
+          const h = document.createElement('div');
+          h.className = 'date-header';
+          h.textContent = `${p.d} ${MONTHS_NL[p.m - 1]} ${p.y}`;
+          wrap.appendChild(h);
+        }
+      }
+      wrap.appendChild(recordCard(r));
     }
 
-    // klik op record -> detail tonen; klik op verwijderen -> verwijderen
+    // klik op record -> detail; klik op × -> verwijderen
     wrap.querySelectorAll('.record').forEach((el) => {
       el.addEventListener('click', (e) => {
         if (e.target.dataset.del) return;
@@ -301,7 +344,6 @@
       const mk = (label, page, opts = {}) => {
         const btn = document.createElement('button');
         btn.textContent = label;
-        if (opts.active) btn.classList.add('active');
         if (opts.disabled) btn.disabled = true;
         btn.addEventListener('click', () => { listState.page = page; renderList(); });
         return btn;
@@ -309,7 +351,7 @@
       pager.appendChild(mk('‹', listState.page - 1, { disabled: listState.page === 1 }));
       const span = document.createElement('span');
       span.className = 'pinfo';
-      span.textContent = `pagina ${listState.page} / ${pages} · ${filtered.length} metingen`;
+      span.textContent = `${listState.page}/${pages}`;
       pager.appendChild(span);
       pager.appendChild(mk('›', listState.page + 1, { disabled: listState.page === pages }));
     }
@@ -317,7 +359,7 @@
 
   async function refreshRecords() {
     listState.all = await window.Storage.list();
-    populateMonths();
+    populateCalendarFilters();
     renderList();
   }
 
@@ -379,7 +421,7 @@
       })
     );
 
-    // lijst-besturing
+    // lijst-besturing (zoeken + kalenderfilters jaar/maand/dag + sortering)
     let searchTimer;
     $('searchBox').addEventListener('input', (e) => {
       clearTimeout(searchTimer);
@@ -387,11 +429,25 @@
         listState.search = e.target.value; listState.page = 1; renderList();
       }, 150);
     });
+    $('yearFilter').addEventListener('change', (e) => {
+      listState.year = e.target.value; listState.month = ''; listState.day = '';
+      listState.page = 1; populateCalendarFilters(); renderList();
+    });
     $('monthFilter').addEventListener('change', (e) => {
-      listState.month = e.target.value; listState.page = 1; renderList();
+      listState.month = e.target.value; listState.day = '';
+      listState.page = 1; populateCalendarFilters(); renderList();
+    });
+    $('dayFilter').addEventListener('change', (e) => {
+      listState.day = e.target.value; listState.page = 1; renderList();
     });
     $('sortBy').addEventListener('change', (e) => {
       listState.sort = e.target.value; listState.page = 1; renderList();
+    });
+    $('clearFilters').addEventListener('click', () => {
+      listState.search = ''; listState.year = ''; listState.month = ''; listState.day = '';
+      listState.page = 1;
+      $('searchBox').value = '';
+      populateCalendarFilters(); renderList();
     });
 
     refreshRecords();

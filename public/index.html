@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SOH Batterij-certificaat</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 
@@ -14,155 +14,168 @@
   <span class="modebadge" id="modeBadge">offline modus</span>
 </p>
 
-<div class="verdict">
-  <div class="verdict-label">⚡ Hoe dit werkt</div>
-  <div class="verdict-text">
-    Sleep een <strong>.txt CAN-log</strong> hierin. De app leest alles
-    <strong>direct uit het bestand</strong>. Betrouwbare bestandsstatistieken en
-    experimentele afleidingen worden apart en eerlijk getoond.
-  </div>
-</div>
+<div class="layout">
 
-<!-- ===== Dropzone ===== -->
-<div class="dropzone" id="dropzone">
-  <span class="dz-icon">📂</span>
-  <div class="dz-title">Sleep hier je .txt-bestand naartoe</div>
-  <div class="dz-sub">of klik om te bladeren</div>
-  <input type="file" id="fileInput" accept=".txt,text/plain" class="hidden">
-</div>
+  <!-- ============ LINKS: opgeslagen metingen (agenda) ============ -->
+  <aside class="sidebar">
+    <h2 class="side-title">🗂️ Metingen <span class="count-badge" id="recCount">0</span></h2>
 
-<!-- ===== Parse-fout melding ===== -->
-<div id="parseError" class="callout danger hidden">
-  <div class="callout-title">🚨 Geen CAN-data herkend in dit bestand</div>
-  <div class="callout-body">
-    Er zijn <strong>geen geldige CAN-frames</strong> gevonden. Waarschijnlijk heeft dit bestand
-    een andere indeling dan verwacht. Hieronder de eerste regels — stuur die door dan pas ik de
-    parser aan op jouw formaat:
-    <pre id="parseSample" class="sample-pre"></pre>
-  </div>
-</div>
+    <input type="search" id="searchBox" placeholder="🔍 Zoek voertuig / VIN / bestand…">
 
-<!-- ===== Resultaat ===== -->
-<section id="result" class="hidden">
-  <h2>📋 Certificaat-overzicht</h2>
-
-  <div id="fileTypeNote" class="callout"></div>
-
-  <!-- Voertuiggegevens: alleen kenteken/model/notitie zelf invullen -->
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-name">Voertuiggegevens</div>
-    <div class="form-grid">
-      <label>Kenteken
-        <input type="text" id="inpKenteken" placeholder="bijv. 12-ABC-3" maxlength="12" style="text-transform:uppercase">
-      </label>
-      <label>Merk &amp; model <span class="muted">(indien nodig)</span>
-        <input type="text" id="inpVehicle" placeholder="BMW i3">
-      </label>
-      <label class="full">Notitie
-        <input type="text" id="inpNote" placeholder="bijv. ingenomen, klant Jansen">
-      </label>
+    <div class="cal-filters">
+      <select id="yearFilter"><option value="">Jaar</option></select>
+      <select id="monthFilter"><option value="">Maand</option></select>
+      <select id="dayFilter"><option value="">Dag</option></select>
+    </div>
+    <div class="cal-filters">
+      <select id="sortBy">
+        <option value="date_desc">Nieuwste eerst</option>
+        <option value="date_asc">Oudste eerst</option>
+        <option value="vehicle_asc">Voertuig (A→Z)</option>
+        <option value="frames_desc">Meeste frames</option>
+      </select>
+      <button class="btn" id="clearFilters" title="Filters wissen">✕ filters</button>
     </div>
 
-    <details class="manual-details">
-      <summary>✏️ Handmatig aanvullen <span class="muted">— alleen als een waarde niet uit het bestand komt</span></summary>
-      <div class="form-grid" style="margin-top:12px;">
-        <label>VIN
-          <input type="text" id="inpVin" placeholder="auto uit bestand" maxlength="17" style="text-transform:uppercase">
-        </label>
-        <label>Kilometerstand
-          <input type="number" id="inpMileage" placeholder="117548" min="0">
-        </label>
-        <label>SOH %
-          <input type="number" id="inpSoh" placeholder="auto" min="0" max="100" step="0.1">
-        </label>
-        <label>Packspanning (V)
-          <input type="number" id="inpPackV" placeholder="auto" min="0" step="0.01">
-        </label>
-        <label>Hoogste celspanning (V)
-          <input type="number" id="inpCellHi" placeholder="auto" min="0" step="0.001">
-        </label>
-        <label>Laagste celspanning (V)
-          <input type="number" id="inpCellLo" placeholder="auto" min="0" step="0.001">
-        </label>
-        <label>Celverschil (mV) <span class="muted">(auto)</span>
-          <input type="number" id="inpCellDiff" placeholder="auto" min="0" step="1">
-        </label>
-        <label>Bruikbare capaciteit (kWh)
-          <input type="number" id="inpCapacity" placeholder="9.35" min="0" step="0.01">
-        </label>
+    <div id="records"><p class="muted">Nog niets opgeslagen.</p></div>
+    <div class="pager" id="pager"></div>
+  </aside>
+
+  <!-- ============ RECHTS: droppen + certificaat ============ -->
+  <main class="main">
+
+    <div class="verdict">
+      <div class="verdict-label">⚡ Hoe dit werkt</div>
+      <div class="verdict-text">
+        Sleep een <strong>.txt CAN-log</strong> hierin. De app leest alles
+        <strong>direct uit het bestand</strong>.
       </div>
-    </details>
-  </div>
-
-  <div class="cards-grid">
-    <!-- SOH-kaart -->
-    <div class="card recommended">
-      <div class="card-name" id="cVehicle">—</div>
-      <div class="card-tagline" id="cFile">—</div>
-      <div class="big" id="cSohBig">—</div>
-      <div class="big-meta">Status van de gezondheid (SOH)</div>
-      <div class="stat-row"><span class="stat-label">VIN</span><span class="stat-value" id="cVin">—</span></div>
-      <div class="stat-row"><span class="stat-label">Decoder</span><span class="stat-value" id="cDecoder">—</span></div>
     </div>
 
-    <!-- Betrouwbare bestandsstatistieken -->
-    <div class="card">
-      <div class="card-name">Bestandsstatistieken</div>
-      <div class="card-tagline">100% uit het bestand <span class="chip ok">betrouwbaar</span></div>
-      <div class="stat-row"><span class="stat-label">Aantal frames</span><span class="stat-value" id="sFrames">—</span></div>
-      <div class="stat-row"><span class="stat-label">Unieke CAN-ID's</span><span class="stat-value" id="sIds">—</span></div>
-      <div class="stat-row"><span class="stat-label">Opnameduur</span><span class="stat-value" id="sDur">—</span></div>
-      <div class="stat-row"><span class="stat-label">Tijdspanne</span><span class="stat-value" id="sSpan">—</span></div>
-      <div class="stat-row"><span class="stat-label">Parse-fouten</span><span class="stat-value" id="sErr">—</span></div>
+    <!-- Dropzone -->
+    <div class="dropzone" id="dropzone">
+      <span class="dz-icon">📂</span>
+      <div class="dz-title">Sleep hier je .txt-bestand naartoe</div>
+      <div class="dz-sub">of klik om te bladeren</div>
+      <input type="file" id="fileInput" accept=".txt,text/plain" class="hidden">
     </div>
-  </div>
 
-  <h3>Certificaat-gegevens</h3>
-  <table>
-    <thead><tr><th>Veld</th><th>Waarde</th><th>Bron</th></tr></thead>
-    <tbody id="fieldsBody"></tbody>
-  </table>
-  <div class="callout">
-    <div class="callout-title">📌 Bron van de gegevens</div>
-    <div class="callout-body">
-      <span class="chip ok">ingevuld</span> = door jou ingevoerd ·
-      <span class="chip nvt">onbekend</span> = niet ingevuld en niet in de passieve CAN-log aanwezig.
-      Tip: celverschil wordt automatisch berekend uit hoogste − laagste celspanning.
+    <!-- Parse-fout melding -->
+    <div id="parseError" class="callout danger hidden">
+      <div class="callout-title">🚨 Geen CAN-data herkend in dit bestand</div>
+      <div class="callout-body">
+        Er zijn <strong>geen geldige CAN-frames</strong> gevonden. Hieronder de eerste regels —
+        stuur die door dan pas ik de parser aan op jouw formaat:
+        <pre id="parseSample" class="sample-pre"></pre>
+      </div>
     </div>
-  </div>
 
-  <div class="btn-row">
-    <button class="btn primary" id="saveBtn">💾 Opslaan in database</button>
-    <button class="btn" id="pdfBtn">📄 PDF / printen</button>
-    <button class="btn" id="mailBtn" disabled title="Komt later">✉️ Mailen</button>
-  </div>
-</section>
+    <!-- Resultaat -->
+    <section id="result" class="hidden">
+      <h2>📋 Certificaat-overzicht</h2>
 
-<!-- ===== Opgeslagen records ===== -->
-<h2>🗂️ Opgeslagen metingen <span class="count-badge" id="recCount">0</span></h2>
+      <div id="fileTypeNote" class="callout"></div>
 
-<div class="list-controls">
-  <input type="search" id="searchBox" placeholder="🔍 Zoek op voertuig, bestandsnaam of VIN…">
-  <select id="monthFilter"><option value="">Alle maanden</option></select>
-  <select id="sortBy">
-    <option value="date_desc">Datum (nieuwste eerst)</option>
-    <option value="date_asc">Datum (oudste eerst)</option>
-    <option value="vehicle_asc">Voertuig (A→Z)</option>
-    <option value="frames_desc">Meeste frames</option>
-  </select>
+      <!-- Voertuiggegevens: alleen kenteken/model/notitie zelf invullen -->
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-name">Voertuiggegevens</div>
+        <div class="form-grid">
+          <label>Kenteken
+            <input type="text" id="inpKenteken" placeholder="bijv. 12-ABC-3" maxlength="12" style="text-transform:uppercase">
+          </label>
+          <label>Merk &amp; model <span class="muted">(indien nodig)</span>
+            <input type="text" id="inpVehicle" placeholder="BMW i3">
+          </label>
+          <label class="full">Notitie
+            <input type="text" id="inpNote" placeholder="bijv. ingenomen, klant Jansen">
+          </label>
+        </div>
+
+        <details class="manual-details">
+          <summary>✏️ Handmatig aanvullen <span class="muted">— alleen als een waarde niet uit het bestand komt</span></summary>
+          <div class="form-grid" style="margin-top:12px;">
+            <label>VIN
+              <input type="text" id="inpVin" placeholder="auto uit bestand" maxlength="17" style="text-transform:uppercase">
+            </label>
+            <label>Kilometerstand
+              <input type="number" id="inpMileage" placeholder="117548" min="0">
+            </label>
+            <label>SOH %
+              <input type="number" id="inpSoh" placeholder="auto" min="0" max="100" step="0.1">
+            </label>
+            <label>Packspanning (V)
+              <input type="number" id="inpPackV" placeholder="auto" min="0" step="0.01">
+            </label>
+            <label>Hoogste celspanning (V)
+              <input type="number" id="inpCellHi" placeholder="auto" min="0" step="0.001">
+            </label>
+            <label>Laagste celspanning (V)
+              <input type="number" id="inpCellLo" placeholder="auto" min="0" step="0.001">
+            </label>
+            <label>Celverschil (mV) <span class="muted">(auto)</span>
+              <input type="number" id="inpCellDiff" placeholder="auto" min="0" step="1">
+            </label>
+            <label>Bruikbare capaciteit (kWh)
+              <input type="number" id="inpCapacity" placeholder="9.35" min="0" step="0.01">
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <div class="cards-grid">
+        <!-- SOH-kaart -->
+        <div class="card recommended">
+          <div class="card-name" id="cVehicle">—</div>
+          <div class="card-tagline" id="cFile">—</div>
+          <div class="big" id="cSohBig">—</div>
+          <div class="big-meta">Status van de gezondheid (SOH)</div>
+          <div class="stat-row"><span class="stat-label">VIN</span><span class="stat-value" id="cVin">—</span></div>
+          <div class="stat-row"><span class="stat-label">Decoder</span><span class="stat-value" id="cDecoder">—</span></div>
+        </div>
+
+        <!-- Betrouwbare bestandsstatistieken -->
+        <div class="card">
+          <div class="card-name">Bestandsstatistieken</div>
+          <div class="card-tagline">100% uit het bestand <span class="chip ok">betrouwbaar</span></div>
+          <div class="stat-row"><span class="stat-label">Aantal frames</span><span class="stat-value" id="sFrames">—</span></div>
+          <div class="stat-row"><span class="stat-label">Unieke CAN-ID's</span><span class="stat-value" id="sIds">—</span></div>
+          <div class="stat-row"><span class="stat-label">Opnameduur</span><span class="stat-value" id="sDur">—</span></div>
+          <div class="stat-row"><span class="stat-label">Tijdspanne</span><span class="stat-value" id="sSpan">—</span></div>
+          <div class="stat-row"><span class="stat-label">Parse-fouten</span><span class="stat-value" id="sErr">—</span></div>
+        </div>
+      </div>
+
+      <h3>Certificaat-gegevens</h3>
+      <table>
+        <thead><tr><th>Veld</th><th>Waarde</th><th>Bron</th></tr></thead>
+        <tbody id="fieldsBody"></tbody>
+      </table>
+      <div class="callout">
+        <div class="callout-title">📌 Bron van de gegevens</div>
+        <div class="callout-body">
+          <span class="chip ok">ingevuld</span> = door jou ingevoerd ·
+          <span class="chip laag">logbestand</span> = automatisch uit de diagnose ·
+          <span class="chip nvt">onbekend</span> = niet beschikbaar.
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn primary" id="saveBtn">💾 Opslaan in database</button>
+        <button class="btn" id="pdfBtn">📄 PDF / printen</button>
+        <button class="btn" id="mailBtn" disabled title="Komt later">✉️ Mailen</button>
+      </div>
+    </section>
+
+  </main>
 </div>
-
-<div id="records"><p class="muted">Nog niets opgeslagen.</p></div>
-
-<div class="pager" id="pager"></div>
 
 <footer>
-  SOH Batterij-certificaat · fase 1 (offline test) · alle data uit het CAN-logbestand
+  SOH Batterij-certificaat · offline · alle data uit het CAN-logbestand
 </footer>
 
-<script src="can.js?v=8"></script>
-<script src="certificate.js?v=8"></script>
-<script src="storage.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="can.js?v=9"></script>
+<script src="certificate.js?v=9"></script>
+<script src="storage.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
