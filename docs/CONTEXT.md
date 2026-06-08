@@ -42,6 +42,17 @@ Drag-drop + robuuste parse + duidelijke foutmelding · invulbaar certificaat (ke
 SOH, packspanning, cellen, celverschil auto, capaciteit, VIN, km, notitie) · live-overzicht ·
 opslaan · zoeken/sorteren/maandfilter/paginering · aanklikbaar detail · PDF/printen.
 
+## Externe decoder-bronnen (voor meer auto's)
+- **OVMS** (openvehicles/Open-Vehicle-Monitoring-System-3): per-auto C++ modules met
+  exacte SME/BMS-PID's (o.a. BMW i3 `vehicle_bmwi3`). GPLv3.
+- **wican-fw** (meatpiHQ): `vehicle_profiles.json` — ELM327 init + PID + formule
+  (bv. `((A*256)+B)/100`). Best integreerbare structuur.
+- **Car Scanner / Torque**: grootste (proprietary) PID-databases.
+- Realiteit: EV-batterij-PID's zijn merk-specifiek en verspreid; geen enkele repo heeft
+  alles. Volvo SOH is semi-locked (VIDA/Orbit) -> 1 referentie nodig om te kalibreren.
+- Plan: decoders DATA-GEDREVEN maken (definitietabel per merk: {ecu, did, veld, formule})
+  zodat een nieuwe auto = een regel toevoegen.
+
 ## Nog te doen
 Mailen · Fase 3 Firebase online (login + cloud-DB; vereist Google-account).
 
