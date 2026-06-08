@@ -228,6 +228,9 @@
       WBN: 'BMW',
       '4US': 'BMW (US)',
       WB1: 'BMW',
+      YV1: 'Volvo',
+      YV4: 'Volvo XC',
+      LYV: 'Volvo',
     };
     return map[wmi] || 'BMW/Mini (UDS-diagnose)';
   }
@@ -322,6 +325,93 @@
       // alle ruwe DID's meegeven voor latere kalibratie
       const rawDids = {};
       for (const k in dids) rawDids[k] = dids[k].map(h2).join(' ');
+      return { model, fields, raw_dids: rawDids };
+    },
+  });
+
+  /* ---- Volvo UDS-diagnose decoder (extended CAN-ID's, standaard ISO-TP) ------
+   * Volvo (bv. XC60 T8) gebruikt 29-bits ID's. De tester vraagt DID's op een
+   * 1DD0xxxx-ID; de ECU antwoordt op een extended ID met (62 <DID> <data>).
+   * ISO-TP is hier STANDAARD: de PCI staat in byte 0 (geen adresbyte).
+   * DID 4806 = volledige cel-array (N cellen × 2 bytes in mV) -> hieruit halen
+   * we hoogste/laagste cel, celverschil en packspanning (som).
+   * ------------------------------------------------------------------------ */
+  function reassembleStdUDS(parsed) {
+    const state = {};
+    const dids = {};
+    for (const f of parsed.frames) {
+      // alleen extended ID's (8 hex) als antwoord-kandidaat
+      if (!/^[0-9A-F]{7,8}$/.test(f.id)) continue;
+      const b = f.bytes;
+      if (!b.length) continue;
+      const st = state[f.id] || (state[f.id] = { buf: null, need: 0 });
+      const pci = b[0], hi = pci >> 4;
+      let msg = null;
+      if (hi === 0) {
+        msg = b.slice(1, 1 + (pci & 0x0F));
+      } else if (hi === 1) {
+        st.need = ((pci & 0x0F) << 8) | b[1];
+        st.buf = b.slice(2);
+        if (st.buf.length >= st.need) { msg = st.buf.slice(0, st.need); st.buf = null; }
+      } else if (hi === 2 && st.buf) {
+        st.buf = st.buf.concat(b.slice(1));
+        if (st.buf.length >= st.need) { msg = st.buf.slice(0, st.need); st.buf = null; }
+      }
+      if (msg && msg.length >= 3 && msg[0] === 0x62) {
+        const did = h2(msg[1]) + h2(msg[2]);
+        if (!(did in dids)) dids[did] = msg.slice(3);
+      }
+    }
+    return dids;
+  }
+
+  registerDecoder({
+    id: 'volvo_uds',
+    label: 'Volvo UDS-diagnose',
+    matches(parsed, stats) {
+      // extended ID's aanwezig en geen BMW-tester (6F1)
+      return !stats.can_ids.includes('6F1') &&
+        stats.can_ids.some((id) => /^[0-9A-F]{7,8}$/.test(id));
+    },
+    decode(parsed) {
+      const dids = reassembleStdUDS(parsed);
+      const fields = {};
+
+      // Zoek de cel-array: een DID-payload met veel 16-bit waarden in mV-bereik
+      let cells = null;
+      for (const k in dids) {
+        const pl = dids[k];
+        if (pl.length < 40 || pl.length % 2) continue;
+        const vals = [];
+        for (let i = 0; i < pl.length; i += 2) vals.push((pl[i] << 8) | pl[i + 1]);
+        const inRange = vals.filter((v) => v >= 2500 && v <= 4300);
+        if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) {
+          cells = inRange; break;
+        }
+      }
+      if (cells) {
+        const hi = Math.max(...cells), lo = Math.min(...cells);
+        const pack = cells.reduce((a, b) => a + b, 0) / 1000; // som mV -> V
+        fields.cell_high = field(+(hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
+        fields.cell_low = field(+(lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
+        fields.cell_diff = field(hi - lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
+        fields.pack_voltage = field(+pack.toFixed(2), 'V', 'hoog', 'UDS cel-array (som)', `Som van ${cells.length} cellen.`);
+      }
+
+      // VIN indien aanwezig (standaard DID F190)
+      const asciiOf = (bs) => bs.map((x) => (x >= 32 && x < 127) ? String.fromCharCode(x) : '').join('');
+      if (dids.F190) {
+        const vin = asciiOf(dids.F190).replace(/[^A-HJ-NPR-Z0-9]/g, '');
+        if (vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'UDS DID F190', 'Uit diagnose.');
+      }
+
+      const note = 'Volvo-parameter; nog niet gekalibreerd.';
+      if (!fields.soh) fields.soh = field(null, '%', 'n.v.t.', '—', note);
+      if (!fields.vin) fields.vin = field(null, '', 'n.v.t.', '—', 'VIN niet in deze opname.');
+
+      const rawDids = {};
+      for (const k in dids) rawDids[k] = dids[k].length > 40 ? `(${dids[k].length} bytes)` : dids[k].map(h2).join(' ');
+      const model = fields.vin && fields.vin.value ? vinToVehicle(fields.vin.value) : 'Volvo (UDS-diagnose)';
       return { model, fields, raw_dids: rawDids };
     },
   });
