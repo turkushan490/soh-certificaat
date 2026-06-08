@@ -231,6 +231,8 @@
       YV1: 'Volvo',
       YV4: 'Volvo XC',
       LYV: 'Volvo',
+      SAD: 'Jaguar',
+      SAJ: 'Jaguar',
     };
     return map[wmi] || 'BMW/Mini (UDS-diagnose)';
   }
@@ -336,12 +338,14 @@
    * DID 4806 = volledige cel-array (N cellen × 2 bytes in mV) -> hieruit halen
    * we hoogste/laagste cel, celverschil en packspanning (som).
    * ------------------------------------------------------------------------ */
+  // Antwoord-ID's: extended (7-8 hex, bv. Volvo) of standaard OBD-II 7E8-7EF (Jaguar e.a.)
+  const isStdRespId = (id) => /^[0-9A-F]{7,8}$/.test(id) || /^7E[89A-F]$/.test(id);
+
   function reassembleStdUDS(parsed) {
     const state = {};
-    const dids = {};
+    const msgs = [];
     for (const f of parsed.frames) {
-      // alleen extended ID's (8 hex) als antwoord-kandidaat
-      if (!/^[0-9A-F]{7,8}$/.test(f.id)) continue;
+      if (!isStdRespId(f.id)) continue;
       const b = f.bytes;
       if (!b.length) continue;
       const st = state[f.id] || (state[f.id] = { buf: null, need: 0 });
@@ -357,27 +361,38 @@
         st.buf = st.buf.concat(b.slice(1));
         if (st.buf.length >= st.need) { msg = st.buf.slice(0, st.need); st.buf = null; }
       }
-      if (msg && msg.length >= 3 && msg[0] === 0x62) {
-        const did = h2(msg[1]) + h2(msg[2]);
-        if (!(did in dids)) dids[did] = msg.slice(3);
-      }
+      if (msg && msg.length >= 2) msgs.push(msg);
     }
-    return dids;
+    return msgs;
   }
 
   registerDecoder({
-    id: 'volvo_uds',
-    label: 'Volvo UDS-diagnose',
+    id: 'obd_uds',
+    label: 'OBD-II / UDS-diagnose',
     matches(parsed, stats) {
-      // extended ID's aanwezig en geen BMW-tester (6F1)
-      return !stats.can_ids.includes('6F1') &&
-        stats.can_ids.some((id) => /^[0-9A-F]{7,8}$/.test(id));
+      // geen BMW-tester (6F1); wel extended ID's of OBD-II 7E8-stijl antwoorden
+      return !stats.can_ids.includes('6F1') && stats.can_ids.some(isStdRespId);
     },
     decode(parsed) {
-      const dids = reassembleStdUDS(parsed);
+      const msgs = reassembleStdUDS(parsed);
+      const asciiOf = (bs) => bs.map((x) => (x >= 32 && x < 127) ? String.fromCharCode(x) : '').join('');
+      const cleanVin = (s) => s.replace(/[^A-HJ-NPR-Z0-9]/g, '');
+
+      // splits berichten: 0x62 = ReadDataByID-respons (DID's), 0x49 = OBD Mode 09
+      const dids = {};
+      let modeVin = null;
+      for (const m of msgs) {
+        if (m[0] === 0x62 && m.length >= 3) {
+          const did = h2(m[1]) + h2(m[2]);
+          if (!(did in dids)) dids[did] = m.slice(3);
+        } else if (m[0] === 0x49 && m[1] === 0x02 && m.length > 3) {
+          modeVin = cleanVin(asciiOf(m.slice(3))); // Mode 09 PID 02 = VIN
+        }
+      }
+
       const fields = {};
 
-      // Zoek de cel-array: een DID-payload met veel 16-bit waarden in mV-bereik
+      // Cel-array: DID-payload met veel 16-bit waarden in mV-bereik
       let cells = null;
       for (const k in dids) {
         const pl = dids[k];
@@ -385,33 +400,31 @@
         const vals = [];
         for (let i = 0; i < pl.length; i += 2) vals.push((pl[i] << 8) | pl[i + 1]);
         const inRange = vals.filter((v) => v >= 2500 && v <= 4300);
-        if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) {
-          cells = inRange; break;
-        }
+        if (inRange.length >= 20 && inRange.length >= vals.length * 0.8) { cells = inRange; break; }
       }
       if (cells) {
         const hi = Math.max(...cells), lo = Math.min(...cells);
-        const pack = cells.reduce((a, b) => a + b, 0) / 1000; // som mV -> V
+        const pack = cells.reduce((a, b) => a + b, 0) / 1000;
         fields.cell_high = field(+(hi / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
         fields.cell_low = field(+(lo / 1000).toFixed(3), 'V', 'hoog', 'UDS cel-array', `${cells.length} cellen.`);
         fields.cell_diff = field(hi - lo, 'mV', 'hoog', 'UDS cel-array', 'Berekend uit cellen.');
         fields.pack_voltage = field(+pack.toFixed(2), 'V', 'hoog', 'UDS cel-array (som)', `Som van ${cells.length} cellen.`);
       }
 
-      // VIN indien aanwezig (standaard DID F190)
-      const asciiOf = (bs) => bs.map((x) => (x >= 32 && x < 127) ? String.fromCharCode(x) : '').join('');
-      if (dids.F190) {
-        const vin = asciiOf(dids.F190).replace(/[^A-HJ-NPR-Z0-9]/g, '');
-        if (vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'UDS DID F190', 'Uit diagnose.');
-      }
+      // VIN: standaard DID F190 of OBD Mode 09
+      let vin = null;
+      if (dids.F190) vin = cleanVin(asciiOf(dids.F190));
+      if ((!vin || vin.length < 11) && modeVin && modeVin.length >= 11) vin = modeVin;
+      if (vin && vin.length >= 11) fields.vin = field(vin, '', 'hoog', 'OBD/UDS (VIN)', 'Uit diagnose.');
 
-      const note = 'Volvo-parameter; nog niet gekalibreerd.';
-      if (!fields.soh) fields.soh = field(null, '%', 'n.v.t.', '—', note);
+      if (!fields.soh) fields.soh = field(null, '%', 'n.v.t.', '—', 'SOH-parameter nog niet gekalibreerd voor dit merk.');
       if (!fields.vin) fields.vin = field(null, '', 'n.v.t.', '—', 'VIN niet in deze opname.');
 
       const rawDids = {};
       for (const k in dids) rawDids[k] = dids[k].length > 40 ? `(${dids[k].length} bytes)` : dids[k].map(h2).join(' ');
-      const model = fields.vin && fields.vin.value ? vinToVehicle(fields.vin.value) : 'Volvo (UDS-diagnose)';
+      // model: uit VIN; anders heuristiek (extended ID's = Volvo-stijl)
+      const hasExt = parsed.frames.some((f) => /^[0-9A-F]{7,8}$/.test(f.id));
+      const model = vin ? vinToVehicle(vin) : (hasExt ? 'Volvo (UDS-diagnose)' : 'OBD-II / UDS-diagnose');
       return { model, fields, raw_dids: rawDids };
     },
   });
