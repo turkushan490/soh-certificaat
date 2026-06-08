@@ -16,6 +16,7 @@
     ['cell_low', 'Laagste celspanning', 'V'],
     ['cell_diff', 'Celverschil', 'mV'],
     ['capacity', 'Bruikbare capaciteit', 'kWh'],
+    ['mileage', 'Kilometerstand', 'km'],
     ['vin', 'VIN', ''],
   ];
 
@@ -54,7 +55,6 @@
     const userVehicle = $('inpVehicle').value.trim();
     rec._userVehicle = userVehicle;
     if (userVehicle) rec.vehicle = userVehicle;
-    rec.mileage = numOrNull('inpMileage');
     rec.note = $('inpNote').value.trim();
 
     const cellHi = numOrNull('inpCellHi');
@@ -72,6 +72,7 @@
       cell_low: cellLo,
       cell_diff: cellDiff,
       capacity: numOrNull('inpCapacity'),
+      mileage: numOrNull('inpMileage'),
       vin: $('inpVin').value.trim().toUpperCase() || null,
     };
     return rec;
@@ -106,7 +107,7 @@
     $('inpKenteken').value = res.kenteken || '';
     $('inpVehicle').value = res._userVehicle || '';
     $('inpVin').value = m.vin || '';
-    $('inpMileage').value = res.mileage ?? '';
+    $('inpMileage').value = (res.manual && res.manual.mileage != null) ? res.manual.mileage : '';
     $('inpNote').value = res.note || '';
     $('inpSoh').value = m.soh ?? '';
     $('inpPackV').value = m.pack_voltage ?? '';

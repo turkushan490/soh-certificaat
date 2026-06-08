@@ -37,7 +37,9 @@
     const sohColor = soh === null ? '#888' : soh >= 80 ? '#1a7f37' : soh >= 60 ? '#bf6a02' : '#cf222e';
     const kenteken = rec.kenteken || '—';
     const vehicle = rec.vehicle || 'Onbekend';
-    const mileage = rec.mileage ? Number(rec.mileage).toLocaleString('nl-NL') + ' km' : '—';
+    const mkm = (rec.manual && rec.manual.mileage != null) ? rec.manual.mileage
+      : (rec.decoded && rec.decoded.mileage && rec.decoded.mileage.value);
+    const mileage = mkm ? Number(mkm).toLocaleString('nl-NL') + ' km' : '—';
     const vin = (rec.manual && rec.manual.vin) || (rec.decoded && rec.decoded.vin && rec.decoded.vin.value) || '—';
     const note = rec.note || '';
 

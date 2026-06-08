@@ -366,6 +366,15 @@
         }
       }
 
+      // Kilometerstand (DID D10D = 4 bytes km, dubbel opgeslagen; of D122)
+      const odo = dids.D122 || dids.D10D;
+      if (odo && odo.length >= 4) {
+        const km = (odo[0] << 24) | (odo[1] << 16) | (odo[2] << 8) | odo[3];
+        if (km > 0 && km < 2000000) {
+          fields.mileage = field(km, 'km', 'hoog', 'UDS DID D10D', 'Kilometerstand.');
+        }
+      }
+
       // DID DDBC = [SOC, SOH(intern), …] ×10.
       // SOC = 1e waarde (laadstand), SOH = 2e waarde (BMW-interne capaciteit-SOH).
       if (dids.DDBC && dids.DDBC.length >= 4) {
